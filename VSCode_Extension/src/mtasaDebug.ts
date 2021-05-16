@@ -403,7 +403,8 @@ class MTASADebugSession extends DebugSession {
 				const obj = JSON.parse(body);
 
 				// Check if paused
-				if (obj.resume_mode == ResumeMode.Paused) {
+				if (obj.resume_mode == ResumeMode.Paused 
+						&& this._serverContext.running) {
 					// Store the breakpoint's file and line
 					this._serverContext.file = obj.current_file;
 					this._serverContext.line = obj.current_line;
