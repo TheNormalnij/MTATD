@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 
 import { exec, ChildProcess } from 'child_process';
 import { normalize } from 'path';
+import { platform } from 'os';
 import * as ps from 'ps-node';
 import * as fs from 'fs';
 
@@ -60,9 +61,25 @@ export function activate(context: vscode.ExtensionContext) {
             // Get extension path (the DebugServer lays there)
             const extensionPath = normalize(vscode.extensions.getExtension('jusonex.mtatd').extensionPath);
 
+            const env_playform = platform();
+            vscode.window.showErrorMessage(env_playform);
             // Start server
-            const path = normalize(serverpath + '/MTA Server.exe');
-            exec(`start "MTA:SA Server [SCRIPT-DEBUG]" "${extensionPath}\\DebugServer.exe" "${path}" 51237`);
+            if (env_playform == "linux")
+            {
+                const terminal = vscode.workspace.getConfiguration().get("terminal.external.linuxExec");
+                const path = normalize(serverpath + '/mta-server64');
+                exec(`${terminal} -e "${extensionPath}/DebugServerLinux ${path} 51237"`);
+            }
+            else if( env_playform == "win32" )
+            {
+                const path = normalize(serverpath + '/MTA Server.exe');
+                exec(`start "MTA:SA Server [SCRIPT-DEBUG]" "${extensionPath}\\DebugServer.exe" "${path}" 51237`);
+            }
+            else
+            {
+                vscode.window.showErrorMessage('Unsupported platform');
+                return;
+            }
         });
     }));
 

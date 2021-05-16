@@ -7,7 +7,7 @@ go build -o ../VSCode_Extension/DebugServer.exe main.go MTADebugAPI.go MTAServer
 
 rem Compress binary
 cd ..
-.\upx.exe -4 VSCode_Extension/DebugServer.exe
+.\tools\upx.exe -4 VSCode_Extension/DebugServer.exe
 
 rem Create Lua bundle
 cd LuaLibrary
