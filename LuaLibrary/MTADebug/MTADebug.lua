@@ -273,7 +273,7 @@ function MTATD.MTADebug:_getLocalVariables()
     -- Get the values of up to 50 local variables
     for i = 1, 50 do
         local name, value = debug.getlocal(4, i)
-        if name and value then
+        if name then
             variables[name] = tostring(value)
         end
     end
@@ -294,7 +294,7 @@ function MTATD.MTADebug:_getUpvalueVariables()
     if func then
         for i = 1, 50 do
             local name, value = debug.getupvalue(func, i)
-            if name and value then
+            if name then
                 variables[tostring(name)] = tostring(value)
             end
         end
