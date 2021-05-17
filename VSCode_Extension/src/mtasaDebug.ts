@@ -266,7 +266,7 @@ class MTASADebugSession extends DebugSession {
 		const scopes = new Array<Scope>();
 
 		scopes.push(new Scope("Local", this._variableHandles.create("local_" + frameReference), false));
-		scopes.push(new Scope("Closure", this._variableHandles.create("closure_" + frameReference), false));
+		scopes.push(new Scope("Upvalues", this._variableHandles.create("upvalue_" + frameReference), false));
 		scopes.push(new Scope("Global", this._variableHandles.create("global_" + frameReference), false));
 
 		response.body = {
@@ -295,7 +295,7 @@ class MTASADebugSession extends DebugSession {
 					});
 				}
 			}
-		} else if (id.startsWith('closure')) {
+		} else if (id.startsWith('upvalue')) {
 			for (const name in debugContext.upvalueVariables) {
 				if (debugContext.upvalueVariables.hasOwnProperty(name) && name != '__isObject') {
 					variables.push({
