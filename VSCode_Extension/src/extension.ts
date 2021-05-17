@@ -62,7 +62,6 @@ export function activate(context: vscode.ExtensionContext) {
             const extensionPath = normalize(vscode.extensions.getExtension('jusonex.mtatd').extensionPath);
 
             const env_playform = platform();
-            vscode.window.showErrorMessage(env_playform);
             // Start server
             if (env_playform == "linux")
             {
