@@ -245,16 +245,28 @@ class MTASADebugSession extends DebugSession {
 		this._currentThreadId = args.threadId;
 		
 		// Only the current stack frame is supported for now
-        const shortFilePath = debugContext.file.match(/(?:\[.*\]\/)?.*?\/(.*)$/);
-        const currentFilePath = this._resourcePath + (shortFilePath ? shortFilePath[1] : debugContext.file);
-		frames.push(new StackFrame(0, 'Frame 0', new Source(basename(currentFilePath),
-				this.convertDebuggerPathToClient(currentFilePath)),
-				this.convertDebuggerLineToClient(debugContext.line), 0));
-		
+		var framesCount = 0;
+		const reg = /(.+):(\d+): in (.+)/;
+		const lines = debugContext.traceback.match(/[^\r\n]+/g);
+		for (var i = 0; lines[i]; i++)
+		{
+			const frameInfo = reg.exec(lines[i]);
+			const fullFilePath = frameInfo[1];
+			const line = Number(frameInfo[2]);
+			const functionName = frameInfo[3];
+
+	        const shortFilePath = fullFilePath.match(/(?:\[.*\]\/)?.*?\/(.*)$/);
+	        const currentFilePath = this._resourcePath + (shortFilePath ? shortFilePath[1] : fullFilePath);
+			frames.push(new StackFrame(i, functionName, new Source(basename(currentFilePath),
+					this.convertDebuggerPathToClient(currentFilePath)),
+					this.convertDebuggerLineToClient(line), 0));
+
+			framesCount++; 
+		}
 		// Craft response
 		response.body = {
 			stackFrames: frames,
-			totalFrames: 1
+			totalFrames: framesCount
 		};
 		this.sendResponse(response);
 	}
@@ -409,6 +421,7 @@ class MTASADebugSession extends DebugSession {
 					// Store the breakpoint's file and line
 					this._serverContext.file = obj.current_file;
 					this._serverContext.line = obj.current_line;
+					this._serverContext.traceback = obj.traceback;
 
 					this._serverContext.localVariables = obj.local_variables;
 					this._serverContext.upvalueVariables = obj.upvalue_variables;
@@ -425,10 +438,12 @@ class MTASADebugSession extends DebugSession {
 				const obj = JSON.parse(body);
 
 				// Check if paused
-				if (obj.resume_mode == ResumeMode.Paused) {
+				if (obj.resume_mode == ResumeMode.Paused
+					&& this._serverContext.running) {
 					// Store the breakpoint's file and line
 					this._clientContext.file = obj.current_file;
 					this._clientContext.line = obj.current_line;
+					this._clientContext.traceback = obj.traceback;
 
 					this._clientContext.localVariables = obj.local_variables;
 					this._clientContext.upvalueVariables = obj.upvalue_variables;

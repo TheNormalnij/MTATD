@@ -36,6 +36,7 @@ type debugContext struct {
 	LocalVariables   map[string]string `json:"local_variables"`
 	UpvalueVariables map[string]string `json:"upvalue_variables"`
 	GlobalVariables  map[string]string `json:"global_variables"`
+	Traceback  	     string            `json:"traceback"`
 }
 
 type debugeeInfo struct {

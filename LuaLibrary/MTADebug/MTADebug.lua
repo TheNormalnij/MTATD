@@ -114,11 +114,23 @@ function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
 
     outputDebugString("Reached breakpoint")
 
+    local traceback = {}
+    local skip = 2
+    for line in debug.traceback("trace", 3):gmatch( "[^\r\n]+" ) do
+        if skip == 0 then
+            table.insert( traceback, line:sub(2) )
+        else
+            skip = skip - 1
+        end
+    end
+    traceback = table.concat(traceback, "\n")
+
     -- Tell backend that we reached a breakpoint
     self._backend:request("MTADebug/set_resume_mode"..RequestSuffix, {
         resume_mode = ResumeMode.Paused,
         current_file = sourcePath,
         current_line = nextLineNumber,
+        traceback = traceback,
 
         local_variables = self:_getLocalVariables(),
         upvalue_variables = self:_getUpvalueVariables(),
