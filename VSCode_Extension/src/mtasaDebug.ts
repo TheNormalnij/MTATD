@@ -245,7 +245,8 @@ class MTASADebugSession extends DebugSession {
 		this._currentThreadId = args.threadId;
 		
 		// Only the current stack frame is supported for now
-		const currentFilePath = this._resourcePath + debugContext.file.match(/(?:\[.*\]\/)?.*?\/(.*)$/)[1];
+        const shortFilePath = debugContext.file.match(/(?:\[.*\]\/)?.*?\/(.*)$/);
+        const currentFilePath = this._resourcePath + (shortFilePath ? shortFilePath[1] : debugContext.file);
 		frames.push(new StackFrame(0, 'Frame 0', new Source(basename(currentFilePath),
 				this.convertDebuggerPathToClient(currentFilePath)),
 				this.convertDebuggerLineToClient(debugContext.line), 0));
@@ -350,7 +351,7 @@ class MTASADebugSession extends DebugSession {
 		request(this._backendUrl + '/MTADebug/set_resume_mode' + debugContext.typeSuffix, {
 			json: { resume_mode: ResumeMode.StepOver }
 		}, () => {
-			debugContext.running = false;
+			debugContext.running = true;
 			this.sendResponse(response);
 		});
 	}
@@ -365,7 +366,7 @@ class MTASADebugSession extends DebugSession {
 		request(this._backendUrl + '/MTADebug/set_resume_mode' + debugContext.typeSuffix, {
 			json: { resume_mode: ResumeMode.StepInto }
 		}, () => {
-			debugContext.running = false;
+			debugContext.running = true;
 			this.sendResponse(response);
 		});
 	}
