@@ -20,6 +20,9 @@ type MTADebugAPI struct {
 	PendingEval string
 	EvalResult  string
 
+
+	Messages []debugMessage
+
 	Info      debugeeInfo
 	MTAServer *MTAServer
 }
@@ -27,6 +30,11 @@ type MTADebugAPI struct {
 type debugBreakpoint struct {
 	File string `json:"file"`
 	Line int    `json:"line"`
+}
+
+type debugMessage struct {
+	Message string `json:"message"`
+	Type int       `json:"type"`
 }
 
 type debugContext struct {
@@ -60,9 +68,14 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	api.PendingEval = ""
 	api.EvalResult = ""
 
+	api.Messages = []debugMessage{}
+
 	// Register routes
 	router.HandleFunc("/get_info", api.handlerGetInfo)
 	router.HandleFunc("/set_info", api.handlerSetInfo)
+
+	router.HandleFunc("/send_message", api.handlerSendMessage)
+	router.HandleFunc("/get_messages", api.handlerGetMessages)
 
 	router.HandleFunc("/get_breakpoints", api.handlerGetBreakpoints)
 	router.HandleFunc("/set_breakpoint", api.handlerSetBreakpoint)
@@ -80,6 +93,24 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	router.HandleFunc("/set_eval_result", api.handlerSetEvalResult)
 
 	return api
+}
+
+func (api *MTADebugAPI) handlerSendMessage(res http.ResponseWriter, req *http.Request) {
+	message := debugMessage{}
+	err := json.NewDecoder(req.Body).Decode(&message)
+
+	if err != nil {
+		panic(err)
+	} else {
+		api.Messages = append(api.Messages, message)
+	}
+
+	json.NewEncoder(res).Encode(&message)
+}
+
+func (api *MTADebugAPI) handlerGetMessages(res http.ResponseWriter, req *http.Request) {
+	json.NewEncoder(res).Encode(&api.Messages)
+	api.Messages = []debugMessage{}	
 }
 
 func (api *MTADebugAPI) handlerGetBreakpoints(res http.ResponseWriter, req *http.Request) {

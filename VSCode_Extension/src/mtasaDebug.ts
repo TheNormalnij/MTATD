@@ -37,6 +37,13 @@ enum ResumeMode {
 	StepOut
 }
 
+enum MessageTypes {
+    console,
+    stdout,
+    stderr,
+    telemetry, 
+}
+
 class DebugContext {
 	public typeSuffix: string;
 	public threadId: number;
@@ -411,6 +418,17 @@ class MTASADebugSession extends DebugSession {
 	 * Polls the backend for the current execution state
 	 */
 	protected checkForPausedTick() {
+		request(this._backendUrl + '/MTADebug/get_messages', (err, response, body) => {
+			if (!err && response.statusCode === 200) {
+				const obj = JSON.parse(body);
+				for (var i = 0; obj[i]; i++)
+				{
+					this.sendEvent(new OutputEvent(obj[i].message + '\n', MessageTypes[obj[i].type]));
+				}
+			}
+		});
+
+
 		request(this._backendUrl + '/MTADebug/get_resume_mode_server', (err, response, body) => {
 			if (!err && response.statusCode === 200) {
 				const obj = JSON.parse(body);

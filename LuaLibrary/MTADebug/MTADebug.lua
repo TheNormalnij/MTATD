@@ -19,6 +19,20 @@ local ResumeMode = {
 }
 local RequestSuffix = triggerClientEvent and "_server" or "_client"
 
+local MesageTypes = {
+    console = 0,
+    stdout = 1,
+    stderr = 2,
+    telemetry = 3, 
+}
+
+local MessageLevelToType = {
+    [0] = MesageTypes.console;
+    [1] = MesageTypes.stderr;
+    [2] = MesageTypes.stdout;
+    [3] = MesageTypes.console;
+}
+
 -----------------------------------------------------------
 -- Constructs the MTADebug manager
 --
@@ -41,6 +55,21 @@ function MTATD.MTADebug:constructor(backend)
             resource_path = self:_getResourceBasePath()
         })
     end
+
+
+    -- Add messages output
+    local tag = triggerClientEvent and "[Server] " or "[Client] "
+    addEventHandler( triggerClientEvent and "onDebugMessage" or "onClientDebugMessage", root, function(message, level, file, line)
+        if file then
+            message = ("%s%s:%s %s"):format(tag, file, line or 0, message)
+        else
+            message = ("%s %s"):format(tag, message)
+        end
+        self._backend:request("MTADebug/send_message", {
+            message = message,
+            type = MessageLevelToType[level],
+        })
+    end )
 
     -- Wait a bit (so that the backend receives the breakpoints)
     debugSleep(1000)
