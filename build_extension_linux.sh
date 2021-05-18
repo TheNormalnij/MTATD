@@ -6,7 +6,7 @@ set GOARCH=386
 go build -o ../VSCode_Extension/DebugServerLinux main.go MTADebugAPI.go MTAServer.go MTAServerAPI.go MTAUnitAPI.go
 cd ..
 
-ech "Compress binary"
+echo "Compress binary"
 ./tools/upx -4 VSCode_Extension/DebugServerLinux
 
 echo "Create Lua bundle"
