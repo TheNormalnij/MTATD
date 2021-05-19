@@ -7,15 +7,16 @@ This extension implements a debug adapter for MTA:SA's (Multi Theft Auto: San An
 * Variable lists (locals, upvalues, globals)
 * Resource restarts
 * Integrated *runcode* via VSCode's "Debug Console" feature
+* Stack traces
+* Debug messages in "Debug Console"
 
 ## Screenshots
-![Debugger Screenshot](http://i.imgur.com/x378Gp7.png)
+![Debugger Screenshot](https://i.imgur.com/5CJU6D3.png)
 
 ## Planned Features
 * Step into functions (+ return from function)
-* Stack traces
 * Variable editing
-* Unit Tests
+* Better debug messages
 
 ## Usage
 1) When you start debugging, _Visual Studio Code_ asks you to create a new launch configuration based upon a default configuration.  
@@ -26,7 +27,17 @@ Make then sure you insert a valid `serverpath` (the path to the server folder **
    <script src="MTATD.bundle.lua" type="shared"/>
    ```
 4) Launch the debug test server by pressing _F1_ in _Visual Studio Code_ and entering `MTA:TD: Start MTA Debug Server` (the auto-completion will help you). You could also create a key mapping for this command.   
-5) You're ready to start debugging now!   
+5) You're ready to start debugging now!
+
+You can run any function in debug mode via `debugRun` method.
+   ```lua
+   function testFucntion()
+      return 5 + nil
+   end
+
+   Debugger:debugRun(testFucntion)
+   ```
+Debugger will stop execution execution on error and call breakpoint in error line.
 
 ## Changelog
 See [CHANGELOG.md](https://github.com/Jusonex/MTATD/blob/master/VSCode_Extension/CHANGELOG.md)
