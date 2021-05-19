@@ -143,9 +143,14 @@ function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
 
     outputDebugString("Reached breakpoint")
 
+    self:runDebugLoop(4)
+end
+
+function MTATD.MTADebug:runDebugLoop(stackLevel)
+
     local traceback = {}
     local skip = 2
-    for line in debug.traceback("trace", 3):gmatch( "[^\r\n]+" ) do
+    for line in debug.traceback("trace", stackLevel):gmatch( "[^\r\n]+" ) do
         if skip == 0 then
             table.insert( traceback, line:sub(2) )
         else
@@ -153,6 +158,11 @@ function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
         end
     end
     traceback = table.concat(traceback, "\n")
+
+    local sourcePath, nextLineNumber = traceback:match( "^(.-):(%d*):? in." )
+
+    sourcePath = sourcePath or "?"
+    nextLineNumber = tonumber(nextLineNumber) or 0
 
     -- Tell backend that we reached a breakpoint
     self._backend:request("MTADebug/set_resume_mode"..RequestSuffix, {

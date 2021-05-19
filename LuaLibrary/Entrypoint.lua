@@ -6,7 +6,7 @@
 ------------------------------------------------------------
 
 -- Start MTATD
-initMTATD()
+Debugger = initMTATD()
 
 -- Destroy MTATD gracefully
 addEventHandler(triggerClientEvent and "onResourceStop" or "onClientResourceStop", resourceRoot,

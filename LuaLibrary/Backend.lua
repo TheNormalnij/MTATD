@@ -93,3 +93,13 @@ function MTATD.Backend:reportTestResults(testResults)
 
     self:request("MTAUnit/report_test_results", testResults)
 end
+
+-----------------------------------------------------------
+-- Run function in debug mode
+-----------------------------------------------------------
+function MTATD.Backend:debugRun(fun)
+    xpcall(fun, function(errorMessage)
+        outputDebugString(errorMessage, 1)
+        self._debug:runDebugLoop(3)
+    end)
+end

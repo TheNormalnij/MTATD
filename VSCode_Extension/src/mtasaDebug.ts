@@ -253,7 +253,7 @@ class MTASADebugSession extends DebugSession {
 		
 		// Only the current stack frame is supported for now
 		var framesCount = 0;
-		const reg = /(.+):(\d+): in (.+)/;
+		const reg = /(.+?):(\d*):? in (.+)/;
 		const lines = debugContext.traceback.match(/[^\r\n]+/g);
 		for (var i = 0; lines[i]; i++)
 		{
