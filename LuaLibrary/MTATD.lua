@@ -37,6 +37,7 @@ function initMTATD()
 
     -- Launch the backend
     backend = MTATD.Backend:new(MTATD.Host, MTATD.Port)
+    return backend
 end
 
 -- Exitpoint function
