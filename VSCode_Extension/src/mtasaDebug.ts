@@ -49,6 +49,7 @@ class DebugContext {
 	public threadId: number;
 	public file: string;
 	public line: number;
+	public traceback: string;
 	public running: boolean = false;
 
 	public localVariables: Object;
@@ -122,9 +123,9 @@ class MTASADebugSession extends DebugSession {
 	 * Called when the debugger is launched (and the debugee started)
 	 */
 	protected launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArguments): void {
-		if (args.trace) {
-			Logger.setup(Logger.LogLevel.Verbose, /*logToFile=*/false);
-		}
+		// if (args.trace) {
+		// 	Logger.setup(Logger.LogLevel.Verbose, false);
+		// }
 
 		// Delay request shortly if the MTA Server is not running yet
 		let interval: NodeJS.Timer;

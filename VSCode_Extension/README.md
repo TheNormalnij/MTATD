@@ -9,7 +9,7 @@ This extension implements a debug adapter for MTA:SA's (Multi Theft Auto: San An
 * Integrated *runcode* via VSCode's "Debug Console" feature
 
 ## Screenshots
-![Debugger Screenshot](http://i.imgur.com/x378Gp7.png)
+![Debugger Screenshot](https://i.imgur.com/5CJU6D3.png)
 
 ## Planned Features
 * Step into functions (+ return from function)
