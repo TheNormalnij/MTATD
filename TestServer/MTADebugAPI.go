@@ -18,10 +18,6 @@ type MTADebugAPI struct {
 	ClientContext debugContext
 	ServerContext debugContext
 
-	PendingEval string
-	EvalResult  string
-
-
 	Messages []debugMessage
 	CommandsServer []debugCommand
 	CommandsClient []debugCommand
@@ -75,9 +71,6 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	api.Breakpoints = []debugBreakpoint{}
 	api.ServerContext.ResumeMode = 0 // ResumeMode.Resume
 	api.ClientContext.ResumeMode = 0 // ResumeMode.Resume
-
-	api.PendingEval = ""
-	api.EvalResult = ""
 
 	api.Messages = []debugMessage{}
 	api.CommandsServer = []debugCommand{}

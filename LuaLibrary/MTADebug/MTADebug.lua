@@ -161,8 +161,8 @@ function MTATD.MTADebug:runDebugLoop(stackLevel)
         current_line = nextLineNumber,
         traceback = traceback,
 
-        local_variables = self:_getLocalVariables(),
-        upvalue_variables = self:_getUpvalueVariables(),
+        local_variables = self:_getLocalVariables(stackLevel),
+        upvalue_variables = self:_getUpvalueVariables(stackLevel),
         global_variables = self:_getGlobalVariables()
     })
 
@@ -296,12 +296,12 @@ end
 --
 -- Returns a table indexed by the variable name
 -----------------------------------------------------------
-function MTATD.MTADebug:_getLocalVariables()
+function MTATD.MTADebug:_getLocalVariables(stackLevel)
     local variables = { __isObject = "" } -- __isObject ensures that toJSON creates a JSON object rather than an array
 
     -- Get the values of up to 50 local variables
     for i = 1, 50 do
-        local name, value = debug.getlocal(4, i)
+        local name, value = debug.getlocal(stackLevel, i)
         if name then
             variables[name] = tostring(value)
         end
@@ -316,9 +316,9 @@ end
 --
 -- Returns a table indexed by the variable name
 -----------------------------------------------------------
-function MTATD.MTADebug:_getUpvalueVariables()
+function MTATD.MTADebug:_getUpvalueVariables(stackLevel)
     local variables = { __isObject = "" }
-    local func = debug.getinfo(4, "f").func
+    local func = debug.getinfo(stackLevel, "f").func
     
     if func then
         for i = 1, 50 do
