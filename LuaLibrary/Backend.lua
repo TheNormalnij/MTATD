@@ -83,6 +83,16 @@ function MTATD.Backend:request(name, data, callback)
     end
 end
 
+function MTATD.Backend:sendMessage(message, type, file, line, variableReference)
+    self:request("MTADebug/send_message", {
+        message = message,
+        type = type,
+        file = file,
+        line = line,
+        varRef = variableReference,
+    })
+end
+
 function MTATD.Backend:reportTestResults(testResults)
     -- Build JSON object
     --[[local data = {}

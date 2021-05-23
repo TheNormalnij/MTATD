@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"os"
+	"strconv"
 	"path/filepath"
 
 	"encoding/json"
@@ -22,9 +23,16 @@ type MTADebugAPI struct {
 
 
 	Messages []debugMessage
+	CommandsServer []debugCommand
+	CommandsClient []debugCommand
 
 	Info      debugeeInfo
 	MTAServer *MTAServer
+}
+
+type debugCommand struct {
+	Command string    `json:"command"`
+	Args    []string  `json:"args"`
 }
 
 type debugBreakpoint struct {
@@ -34,7 +42,10 @@ type debugBreakpoint struct {
 
 type debugMessage struct {
 	Message string `json:"message"`
-	Type int       `json:"type"`
+	Type    int    `json:"type"`
+	File    string `json:"file"`
+	Line    int    `json:"line"`
+	VarRef  int    `json:"varRef"`
 }
 
 type debugContext struct {
@@ -69,10 +80,17 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	api.EvalResult = ""
 
 	api.Messages = []debugMessage{}
+	api.CommandsServer = []debugCommand{}
+	api.CommandsClient = []debugCommand{}
 
 	// Register routes
 	router.HandleFunc("/get_info", api.handlerGetInfo)
 	router.HandleFunc("/set_info", api.handlerSetInfo)
+
+	router.HandleFunc("/push_command_server", api.handlerPushCommandServer)
+	router.HandleFunc("/pull_commands_server", api.handlerPullCommandsServer)
+	router.HandleFunc("/push_command_client", api.handlerPushCommandClient)
+	router.HandleFunc("/pull_commands_client", api.handlerPullCommandsClient)
 
 	router.HandleFunc("/send_message", api.handlerSendMessage)
 	router.HandleFunc("/get_messages", api.handlerGetMessages)
@@ -87,12 +105,43 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	router.HandleFunc("/set_resume_mode_server", api.handlerSetResumeModeServer)
 	router.HandleFunc("/set_resume_mode_client", api.handlerSetResumeModeClient)
 
-	router.HandleFunc("/get_pending_eval", api.handlerGetPendingEval)
-	router.HandleFunc("/set_pending_eval", api.handlerSetPendingEval)
-	router.HandleFunc("/get_eval_result", api.handlerGetEvalResult)
-	router.HandleFunc("/set_eval_result", api.handlerSetEvalResult)
-
 	return api
+}
+
+func (api *MTADebugAPI) handlerPushCommandServer(res http.ResponseWriter, req *http.Request) {
+	command := debugCommand{}
+	err := json.NewDecoder(req.Body).Decode(&command)
+
+	if err != nil {
+		panic(err)
+	} else {
+		api.CommandsServer = append(api.CommandsServer, command)
+	}
+
+	json.NewEncoder(res).Encode(&command)
+}
+
+func (api *MTADebugAPI) handlerPullCommandsServer(res http.ResponseWriter, req *http.Request) {
+	json.NewEncoder(res).Encode(&api.CommandsServer)
+	api.CommandsServer = []debugCommand{}
+}
+
+func (api *MTADebugAPI) handlerPushCommandClient(res http.ResponseWriter, req *http.Request) {
+	command := debugCommand{}
+	err := json.NewDecoder(req.Body).Decode(&command)
+
+	if err != nil {
+		panic(err)
+	} else {
+		api.CommandsClient = append(api.CommandsClient, command)
+	}
+
+	json.NewEncoder(res).Encode(&command)
+}
+
+func (api *MTADebugAPI) handlerPullCommandsClient(res http.ResponseWriter, req *http.Request) {
+	json.NewEncoder(res).Encode(&api.CommandsClient)
+	api.CommandsClient = []debugCommand{}
 }
 
 func (api *MTADebugAPI) handlerSendMessage(res http.ResponseWriter, req *http.Request) {
@@ -126,6 +175,9 @@ func (api *MTADebugAPI) handlerSetBreakpoint(res http.ResponseWriter, req *http.
 	} else {
 		api.Breakpoints = append(api.Breakpoints, breakpoint)
 	}
+	add_command := debugCommand{"set_breakpoint", []string{breakpoint.File, strconv.Itoa(breakpoint.Line)}}
+	api.CommandsServer = append(api.CommandsServer,add_command)
+	api.CommandsClient = append(api.CommandsClient,add_command)
 
 	json.NewEncoder(res).Encode(&breakpoint)
 }
@@ -173,6 +225,10 @@ func (api *MTADebugAPI) handlerSetResumeModeServer(res http.ResponseWriter, req 
 	} else {
 		api.ServerContext = context
 		json.NewEncoder(res).Encode(&api.ServerContext)
+
+		add_command := debugCommand{"set_resume_mode", []string{strconv.Itoa(context.ResumeMode)}}
+		api.CommandsServer = append(api.CommandsServer,add_command)
+		api.CommandsClient = append(api.CommandsClient,add_command)
 	}
 }
 
@@ -207,61 +263,5 @@ func (api *MTADebugAPI) handlerSetInfo(res http.ResponseWriter, req *http.Reques
 		}
 
 		json.NewEncoder(res).Encode(&api.Info)
-	}
-}
-
-func (api *MTADebugAPI) handlerGetPendingEval(res http.ResponseWriter, req *http.Request) {
-	var jsonReq = struct {
-		PendingEval string `json:"pending_eval"`
-	}{api.PendingEval}
-
-	err := json.NewEncoder(res).Encode(&jsonReq)
-	if err != nil {
-		panic(err)
-	} else {
-		api.PendingEval = ""
-	}
-}
-
-func (api *MTADebugAPI) handlerSetPendingEval(res http.ResponseWriter, req *http.Request) {
-	var jsonReq = struct {
-		PendingEval string `json:"pending_eval"`
-	}{}
-
-	err := json.NewDecoder(req.Body).Decode(&jsonReq)
-	if err != nil {
-		panic(err)
-	} else {
-		api.PendingEval = jsonReq.PendingEval
-
-		json.NewEncoder(res).Encode(&jsonReq)
-	}
-}
-
-func (api *MTADebugAPI) handlerGetEvalResult(res http.ResponseWriter, req *http.Request) {
-	var jsonReq = struct {
-		EvalResult string `json:"eval_result"`
-	}{api.EvalResult}
-
-	err := json.NewEncoder(res).Encode(&jsonReq)
-	if err != nil {
-		panic(err)
-	} else {
-		api.EvalResult = ""
-	}
-}
-
-func (api *MTADebugAPI) handlerSetEvalResult(res http.ResponseWriter, req *http.Request) {
-	var jsonReq = struct {
-		EvalResult string `json:"eval_result"`
-	}{}
-
-	err := json.NewDecoder(req.Body).Decode(&jsonReq)
-	if err != nil {
-		panic(err)
-	} else {
-		api.EvalResult = jsonReq.EvalResult
-
-		json.NewEncoder(res).Encode(&jsonReq)
 	}
 }

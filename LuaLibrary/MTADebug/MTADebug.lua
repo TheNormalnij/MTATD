@@ -60,15 +60,7 @@ function MTATD.MTADebug:constructor(backend)
     -- Add messages output
     local tag = triggerClientEvent and "[Server] " or "[Client] "
     addEventHandler( triggerClientEvent and "onDebugMessage" or "onClientDebugMessage", root, function(message, level, file, line)
-        if file then
-            message = ("%s%s:%s %s"):format(tag, file, line or 0, message)
-        else
-            message = ("%s %s"):format(tag, message)
-        end
-        self._backend:request("MTADebug/send_message", {
-            message = message,
-            type = MessageLevelToType[level],
-        })
+        self._backend:sendMessage(("%s %s"):format(tag, message), MessageLevelToType[level], file, line)
     end )
 
     -- Wait a bit (so that the backend receives the breakpoints)
@@ -87,11 +79,8 @@ function MTATD.MTADebug:constructor(backend)
             -- Update breakpoint list
             self:_fetchBreakpoints()
 
-            -- Check for changing resume mode
-            self:_checkForResumeModeChange()
-
-            -- Check for pending eval expression
-            self:_checkForPendingEval()
+            -- pull commands
+            self:_fetchCommands()
         end,
         500,
         0
@@ -147,6 +136,7 @@ function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
 end
 
 function MTATD.MTADebug:runDebugLoop(stackLevel)
+    self._resumeMode = ResumeMode.Paused
 
     local traceback = {}
     local skip = 2
@@ -180,17 +170,16 @@ function MTATD.MTADebug:runDebugLoop(stackLevel)
     local continue = false
     repeat
         -- Ask backend
-        self._backend:request("MTADebug/get_resume_mode"..RequestSuffix, {},
+        self._backend:request("MTADebug/pull_commands"..RequestSuffix, {},
             function(info)
                 -- Continue in case of a failure (to prevent a freeze)
                 if not info then
                     continue = true
                 end
 
-                self._resumeMode = info.resume_mode
-                self._stepOverStackSize = 0
+                self:_handleCommands( info )
 
-                if info.resume_mode ~= ResumeMode.Paused then
+                if self._resumeMode ~= ResumeMode.Paused then
                     continue = true
 
                     -- Update breakpoints
@@ -263,36 +252,25 @@ function MTATD.MTADebug:_fetchBreakpoints(wait)
     end
 end
 
------------------------------------------------------------
--- Checks for resume mode changes and stores the
--- maybe new resume mode
------------------------------------------------------------
-function MTATD.MTADebug:_checkForResumeModeChange()
-    self._backend:request("MTADebug/get_resume_mode"..RequestSuffix, {},
-        function(info)
-            self._resumeMode = info.resume_mode
-        end
-    )
-end
+function MTATD.MTADebug:_fetchCommands(wait)
+    local responseAvailable = false
 
------------------------------------------------------------
--- Checks for pending 'evaluate' commands
------------------------------------------------------------
-function MTATD.MTADebug:_checkForPendingEval()
-    self._backend:request("MTADebug/get_pending_eval", {},
+    self._backend:request("MTADebug/pull_commands"..RequestSuffix, {},
         function(info)
-            if info.pending_eval and info.pending_eval ~= "" then
-                -- Run the piece of code
-                outputDebugString("RUN STRING: "..info.pending_eval)
-                local returnString, errorString = self:_runString(info.pending_eval)
-
-                -- Send result back to backend
-                self._backend:request("MTADebug/set_eval_result", {
-                    eval_result = "Result: "..tostring(returnString or errorString)
-                }, function() end)
+            -- Continue in case of a failure (to prevent a freeze)
+            if info then
+                self:_handleCommands( info )
             end
+            responseAvailable = true
         end
     )
+
+    -- Wait
+    if wait then
+        repeat
+            debugSleep(25)
+        until responseAvailable
+    end
 end
 
 -----------------------------------------------------------
@@ -448,3 +426,41 @@ function MTATD.MTADebug:_composeGlobalIgnoreList()
 
     return ignoreList
 end
+
+function MTATD.MTADebug:_handleCommands( commands )
+    local commandData
+    for i = 1, #commands do
+        commandData = commands[i]
+        self.Commands[ commandData.command ]( self, commandData.args and unpack( commandData.args ) )
+    end
+end
+
+MTATD.MTADebug.Commands = {}
+
+function MTATD.MTADebug.Commands:set_resume_mode( resumeMode )
+    self._resumeMode = tonumber( resumeMode )
+end
+
+function MTATD.MTADebug.Commands:run_code( strCode )
+    local returnString
+
+    if strCode:sub(1,1) == "/" then
+        local command, args = strCode:match( "/([^ ]+) ?(.*)" )
+        if command then
+            local status
+            if triggerClientEvent then
+                status = executeCommandHandler( command, getRandomPlayer() or root, args )
+            else
+                status = executeCommandHandler( command, args )
+            end
+            returnString = status and "Command executed" or "Can't execute command"
+        else
+            returnString = "Command syntax error"
+        end
+    else
+        returnString, errorString = self:_runString(strCode)
+        returnString = returnString or errorString
+    end
+    self._backend:sendMessage( "Result: "..tostring(returnString), MesageTypes.console )
+end
+

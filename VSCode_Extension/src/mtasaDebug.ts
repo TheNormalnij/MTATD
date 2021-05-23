@@ -395,23 +395,14 @@ class MTASADebugSession extends DebugSession {
 	 * Called when the editor requests an eval call
 	 */
 	protected evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
-		request(this._backendUrl + '/MTADebug/set_pending_eval', {
-			json: { pending_eval: args.expression }
+		request(this._backendUrl + '/MTADebug/push_command_server', {
+			json: { command: "run_code", args: [ args.expression ] }
 		}, () => {
-
-			// Dirty hack: Wait a moment (TODO)
-			setTimeout(() => {
-				request(this._backendUrl + '/MTADebug/get_eval_result', (err, res, body) => {
-					if (!err && res.statusCode === 200) {
-						// Output result to backend
-						response.body = {
-							result: JSON.parse(body).eval_result,
-							variablesReference: 0
-						};
-						this.sendResponse(response);
-					}
-				});
-			}, 1000);
+			response.body = {
+				result: 'Send command to server...',
+				variablesReference: 0
+			};
+			this.sendResponse(response);
 		});
 	}
 
@@ -421,10 +412,18 @@ class MTASADebugSession extends DebugSession {
 	protected checkForPausedTick() {
 		request(this._backendUrl + '/MTADebug/get_messages', (err, response, body) => {
 			if (!err && response.statusCode === 200) {
-				const obj = JSON.parse(body);
-				for (var i = 0; obj[i]; i++)
+				const objs = JSON.parse(body);
+				for (var i = 0; objs[i]; i++)
 				{
-					this.sendEvent(new OutputEvent(obj[i].message + '\n', MessageTypes[obj[i].type]));
+					const obj = objs[i];
+					var event = new OutputEvent(obj.message + '\n', MessageTypes[obj.type]);
+					if (obj.file) {
+						const filePath = obj.file.match(/(?:\[.*\]\/)?.*?\/(.*)$/);
+						(<DebugProtocol.OutputEvent>event).body.source = new Source(this._resourcePath + filePath[1]);
+						(<DebugProtocol.OutputEvent>event).body.line = obj.line;
+					}
+					(<DebugProtocol.OutputEvent>event).body.variablesReference = obj.varRef;
+					this.sendEvent(event);
 				}
 			}
 		});
