@@ -86,6 +86,8 @@ class MTASADebugSession extends DebugSession {
 	private _resourcesPath: string;
 	private _resourcePath: string;
 
+	private _lastCommandID = 1;
+
 	/**
 	 * Creates a new debug adapter that is used for one debug session.
 	 * We configure the default implementation of a debug adapter here.
@@ -305,29 +307,7 @@ class MTASADebugSession extends DebugSession {
 		const debugContext = this.getDebugContextByThreadId(this._currentThreadId);
 		
 		// TODO: Use variablesReference to show the entries in tables
-		if (id.startsWith('local')) {
-			for (const name in debugContext.localVariables) {
-				if (debugContext.localVariables.hasOwnProperty(name) && name != '__isObject') {
-					variables.push({
-						name: name,
-						type: 'string', // TODO: Map type properly
-						value: debugContext.localVariables[name],
-						variablesReference: 0
-					});
-				}
-			}
-		} else if (id.startsWith('upvalue')) {
-			for (const name in debugContext.upvalueVariables) {
-				if (debugContext.upvalueVariables.hasOwnProperty(name) && name != '__isObject') {
-					variables.push({
-						name: name,
-						type: 'string', // TODO: Map type properly
-						value: debugContext.upvalueVariables[name],
-						variablesReference: 0
-					});
-				}
-			}
-		} else if (id.startsWith('global')) {
+		if (id && id.startsWith('global')) {
 			for (const name in debugContext.globalVariables) {
 				if (debugContext.globalVariables.hasOwnProperty(name) && name != '__isObject') {
 					variables.push({
@@ -338,12 +318,39 @@ class MTASADebugSession extends DebugSession {
 					});
 				}
 			}
-		}
 
-		response.body = {
-			variables: variables
-		};
-		this.sendResponse(response);
+			response.body = {
+				variables: variables
+			};
+			this.sendResponse(response);
+			return
+		} else {
+			// Send continue request to backend
+			const prev = this
+			request(this._backendUrl + '/MTADebug/push_command' + debugContext.typeSuffix, {
+				json: { command: "request_variable", args: [ String(args.variablesReference), id ], answer_id: this._lastCommandID++ },
+				}, (err, status, body) => {
+				if (!err && status.statusCode === 200) {
+					const objs = JSON.parse(JSON.stringify(body));
+					for (var i = 0; objs[i]; i++)
+					{
+						const obj = objs[i]
+						variables.push({
+							name: obj.name,
+							type:  obj.type,
+							value: obj.value,
+							variablesReference: obj.varRef
+						});
+					}
+				}
+
+				response.body = {
+					variables: variables
+				};
+				prev.sendResponse(response);
+			});
+
+		}
 	}
 
 	/**
@@ -395,14 +402,19 @@ class MTASADebugSession extends DebugSession {
 	 * Called when the editor requests an eval call
 	 */
 	protected evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
+		const parent = this
 		request(this._backendUrl + '/MTADebug/push_command_server', {
-			json: { command: "run_code", args: [ args.expression ] }
-		}, () => {
-			response.body = {
-				result: 'Send command to server...',
-				variablesReference: 0
-			};
-			this.sendResponse(response);
+			json: { command: "run_code", args: [ args.expression ], answer_id: this._lastCommandID++ }
+		}, (err, status, body) => {
+			if (!err && status.statusCode === 200) {
+				//const commandResult = JSON.parse(JSON.stringify(body));
+				const commandResult = body;
+				response.body = {
+					result: commandResult,
+					variablesReference: 0
+				};
+				parent.sendResponse(response);
+			}
 		});
 	}
 

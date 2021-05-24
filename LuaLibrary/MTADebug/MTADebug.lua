@@ -136,6 +136,7 @@ function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
 end
 
 function MTATD.MTADebug:runDebugLoop(stackLevel)
+    self._stoppedStackLevel = stackLevel
     self._resumeMode = ResumeMode.Paused
 
     local traceback = {}
@@ -161,35 +162,25 @@ function MTATD.MTADebug:runDebugLoop(stackLevel)
         current_line = nextLineNumber,
         traceback = traceback,
 
-        local_variables = self:_getLocalVariables(stackLevel),
-        upvalue_variables = self:_getUpvalueVariables(stackLevel),
         global_variables = self:_getGlobalVariables()
     })
+
 
     -- Wait for resume request
     local continue = false
     repeat
         -- Ask backend
-        self._backend:request("MTADebug/pull_commands"..RequestSuffix, {},
-            function(info)
-                -- Continue in case of a failure (to prevent a freeze)
-                if not info then
-                    continue = true
-                end
+        local commands = self._backend:request("MTADebug/pull_commands"..RequestSuffix, {}, false)
 
-                self:_handleCommands( info )
+        if commands then
+            self:_handleCommands( commands )
+        else
+            continue = true
+        end
 
-                if self._resumeMode ~= ResumeMode.Paused then
-                    continue = true
-
-                    -- Update breakpoints
-                    self:_fetchBreakpoints(true)
-                end
-            end
-        )
-
-        -- Sleep a bit (MTA still processes http events internally)
-        debugSleep(100)
+        if self._resumeMode ~= ResumeMode.Paused then
+            continue = true
+        end
     until continue
 
     outputDebugString("Resuming execution...")
@@ -297,13 +288,20 @@ end
 -- Returns a table indexed by the variable name
 -----------------------------------------------------------
 function MTATD.MTADebug:_getLocalVariables(stackLevel)
-    local variables = { __isObject = "" } -- __isObject ensures that toJSON creates a JSON object rather than an array
+    local variables = {} -- __isObject ensures that toJSON creates a JSON object rather than an array
 
     -- Get the values of up to 50 local variables
-    for i = 1, 50 do
+    for i = 1, 200 do
         local name, value = debug.getlocal(stackLevel, i)
         if name then
-            variables[name] = tostring(value)
+            table.insert(variables, {
+                name = tostring(name),
+                value = tostring( value ),
+                type = type( value ),
+                varRef = 0,
+            })
+        else
+            break;
         end
     end
 
@@ -317,14 +315,21 @@ end
 -- Returns a table indexed by the variable name
 -----------------------------------------------------------
 function MTATD.MTADebug:_getUpvalueVariables(stackLevel)
-    local variables = { __isObject = "" }
+    local variables = { }
     local func = debug.getinfo(stackLevel, "f").func
     
     if func then
-        for i = 1, 50 do
+        for i = 1, 200 do
             local name, value = debug.getupvalue(func, i)
             if name then
-                variables[tostring(name)] = tostring(value)
+                table.insert(variables, {
+                    name = tostring(name),
+                    value = tostring( value ),
+                    type = type( value ),
+                    varRef = 0,
+                })
+            else
+                break
             end
         end
     end
@@ -339,7 +344,7 @@ end
 -----------------------------------------------------------
 function MTATD.MTADebug:_getGlobalVariables()
     local counter = 0
-    local variables = { __isObject = "" }
+    local variables = { }
 
     for k, v in pairs(_G) do
         if type(v) ~= "function" and type(k) == "string" then
@@ -428,10 +433,28 @@ function MTATD.MTADebug:_composeGlobalIgnoreList()
 end
 
 function MTATD.MTADebug:_handleCommands( commands )
-    local commandData
+    if #commands == 0 then
+        return
+    end
+    local results = {}
+    local commandData, result
     for i = 1, #commands do
         commandData = commands[i]
-        self.Commands[ commandData.command ]( self, commandData.args and unpack( commandData.args ) )
+        if self.Commands[ commandData.command ] then
+            commandData.args = commandData.args or {}
+            result = self.Commands[ commandData.command ]( self, unpack( commandData.args ) ) or false
+            if commandData.answer_id and commandData.answer_id ~= 0 and result then
+                table.insert(results, {
+                    answer_id = commandData.answer_id,
+                    result = result,
+                })
+            end
+        else
+            outputDebugString( "Can not find handler for debugger command " .. commandData.command, 1 )
+        end
+    end
+    if #results ~= 0 then
+        self._backend:request("MTADebug/push_commands_result"..RequestSuffix, results )
     end
 end
 
@@ -439,6 +462,28 @@ MTATD.MTADebug.Commands = {}
 
 function MTATD.MTADebug.Commands:set_resume_mode( resumeMode )
     self._resumeMode = tonumber( resumeMode )
+    return tostring( self._resumeMode )
+end
+
+function MTATD.MTADebug.Commands:request_variable( ref, id )
+    if id then
+        local varType, stackLevel = id:match( "^(%w+)_(%d+)" )
+        stackLevel = tonumber( stackLevel )
+        local variables
+        if varType == "local" then
+            variables = self:_getLocalVariables( self._stoppedStackLevel + stackLevel + 3 )
+        elseif varType == "upvalue" then
+            variables = self:_getUpvalueVariables( self._stoppedStackLevel + stackLevel + 3 )
+        else
+            -- We don't need  get global variables
+            variables = {}
+        end
+
+
+        return toJSON(variables, true):gsub("%[(.*)%]", "%1")
+    else
+        return toJSON({}, true):gsub("%[(.*)%]", "%1")
+    end
 end
 
 function MTATD.MTADebug.Commands:run_code( strCode )
@@ -461,6 +506,6 @@ function MTATD.MTADebug.Commands:run_code( strCode )
         returnString, errorString = self:_runString(strCode)
         returnString = returnString or errorString
     end
-    self._backend:sendMessage( "Result: "..tostring(returnString), MesageTypes.console )
+    return tostring(returnString)
 end
 

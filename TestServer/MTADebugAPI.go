@@ -3,9 +3,11 @@ package main
 import (
 	"net/http"
 	"os"
+	"time"
+	"sync"
 	"strconv"
 	"path/filepath"
-
+	"fmt"
 	"encoding/json"
 
 	"github.com/gorilla/mux"
@@ -19,16 +21,38 @@ type MTADebugAPI struct {
 	ServerContext debugContext
 
 	Messages []debugMessage
-	CommandsServer []debugCommand
-	CommandsClient []debugCommand
+
+	CmdServer CommandInterface
+	CmdClient CommandInterface
+
+	VariableRequestAnswers map[string][]DebugVariable
 
 	Info      debugeeInfo
 	MTAServer *MTAServer
 }
 
+type CommandInterface struct {
+	Commands []debugCommand
+	Answers  map[int]string
+	AnMytex  sync.RWMutex
+}
+
+type DebugVariable struct {
+	Name string  `json:"name"`
+	Type string  `json:"type"`
+	Value string `json:"value"`
+	VarRef int   `json:"varRef"`
+}
+
 type debugCommand struct {
-	Command string    `json:"command"`
-	Args    []string  `json:"args"`
+	Command  string    `json:"command"`
+	Args     []string  `json:"args"`
+	AnswerId int       `json:"answer_id"`
+}
+
+type debugCommandAnswer struct {
+	AnswerId int       `json:"answer_id"`
+	Result   string    `json:"result"`
 }
 
 type debugBreakpoint struct {
@@ -48,8 +72,6 @@ type debugContext struct {
 	ResumeMode       int               `json:"resume_mode"`
 	File             string            `json:"current_file"`
 	Line             int               `json:"current_line"`
-	LocalVariables   map[string]string `json:"local_variables"`
-	UpvalueVariables map[string]string `json:"upvalue_variables"`
 	GlobalVariables  map[string]string `json:"global_variables"`
 	Traceback  	     string            `json:"traceback"`
 }
@@ -73,8 +95,10 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	api.ClientContext.ResumeMode = 0 // ResumeMode.Resume
 
 	api.Messages = []debugMessage{}
-	api.CommandsServer = []debugCommand{}
-	api.CommandsClient = []debugCommand{}
+	api.CmdServer = CommandInterface{[]debugCommand{}, map[int]string{}, sync.RWMutex{}}
+	api.CmdClient = CommandInterface{[]debugCommand{}, map[int]string{}, sync.RWMutex{}}
+
+	api.VariableRequestAnswers = map[string][]DebugVariable{}
 
 	// Register routes
 	router.HandleFunc("/get_info", api.handlerGetInfo)
@@ -84,6 +108,8 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	router.HandleFunc("/pull_commands_server", api.handlerPullCommandsServer)
 	router.HandleFunc("/push_command_client", api.handlerPushCommandClient)
 	router.HandleFunc("/pull_commands_client", api.handlerPullCommandsClient)
+	router.HandleFunc("/push_commands_result_server", api.handlerPushCommandResultServer)
+	router.HandleFunc("/push_commands_result_client", api.handlerPushCommandResultClient)
 
 	router.HandleFunc("/send_message", api.handlerSendMessage)
 	router.HandleFunc("/get_messages", api.handlerGetMessages)
@@ -108,15 +134,51 @@ func (api *MTADebugAPI) handlerPushCommandServer(res http.ResponseWriter, req *h
 	if err != nil {
 		panic(err)
 	} else {
-		api.CommandsServer = append(api.CommandsServer, command)
+		api.CmdServer.Commands = append(api.CmdServer.Commands, command)
 	}
 
-	json.NewEncoder(res).Encode(&command)
+	if command.AnswerId != 0 {
+		var link = command.AnswerId
+		var result = "";
+		var hasValue = false
+		for ; !hasValue; {
+			api.CmdServer.AnMytex.RLock()
+			result, hasValue = api.CmdServer.Answers[link]
+			if hasValue {
+				delete( api.CmdServer.Answers, link )
+				api.CmdServer.AnMytex.RUnlock()
+				break;
+			} else {
+				api.CmdServer.AnMytex.RUnlock();
+				time.Sleep(1)
+			}
+		}
+
+		fmt.Fprintf(res, result)
+	} else
+	{
+		json.NewEncoder(res).Encode("Successfully")
+	}
 }
 
 func (api *MTADebugAPI) handlerPullCommandsServer(res http.ResponseWriter, req *http.Request) {
-	json.NewEncoder(res).Encode(&api.CommandsServer)
-	api.CommandsServer = []debugCommand{}
+	json.NewEncoder(res).Encode(&api.CmdServer.Commands)
+	api.CmdServer.Commands = []debugCommand{}
+}
+
+func (api *MTADebugAPI) handlerPushCommandResultServer(res http.ResponseWriter, req *http.Request) {
+	var answers = []debugCommandAnswer{}
+	err := json.NewDecoder(req.Body).Decode(&answers)
+	if err != nil {
+		panic(err)
+	} else {
+		api.CmdServer.AnMytex.Lock()
+		for _, answerData := range answers{
+			api.CmdServer.Answers[ answerData.AnswerId ] = answerData.Result;
+		}
+		api.CmdServer.AnMytex.Unlock()
+		json.NewEncoder(res).Encode("Successfully")
+	}
 }
 
 func (api *MTADebugAPI) handlerPushCommandClient(res http.ResponseWriter, req *http.Request) {
@@ -126,15 +188,51 @@ func (api *MTADebugAPI) handlerPushCommandClient(res http.ResponseWriter, req *h
 	if err != nil {
 		panic(err)
 	} else {
-		api.CommandsClient = append(api.CommandsClient, command)
+		api.CmdClient.Commands = append(api.CmdClient.Commands, command)
 	}
 
-	json.NewEncoder(res).Encode(&command)
+	if command.AnswerId != 0 {
+		var link = command.AnswerId
+		var result = "";
+		var hasValue = false
+		for ; !hasValue; {
+			api.CmdClient.AnMytex.RLock()
+			result, hasValue = api.CmdClient.Answers[link]
+			if hasValue {
+				delete( api.CmdClient.Answers, link )
+				api.CmdClient.AnMytex.RUnlock()
+				break;
+			} else {
+				api.CmdClient.AnMytex.RUnlock();
+				time.Sleep(1)
+			}
+		}
+
+		fmt.Fprintf(res, result)
+	} else
+	{
+		json.NewEncoder(res).Encode("Successfully")
+	}
 }
 
 func (api *MTADebugAPI) handlerPullCommandsClient(res http.ResponseWriter, req *http.Request) {
-	json.NewEncoder(res).Encode(&api.CommandsClient)
-	api.CommandsClient = []debugCommand{}
+	json.NewEncoder(res).Encode(&api.CmdClient.Commands)
+	api.CmdClient.Commands = []debugCommand{}
+}
+
+func (api *MTADebugAPI) handlerPushCommandResultClient(res http.ResponseWriter, req *http.Request) {
+	var answers = []debugCommandAnswer{}
+	err := json.NewDecoder(req.Body).Decode(&answers)
+	if err != nil {
+		panic(err)
+	} else {
+		api.CmdClient.AnMytex.Lock()
+		for _, answerData := range answers{
+			api.CmdClient.Answers[ answerData.AnswerId ] = answerData.Result;
+		}
+		api.CmdClient.AnMytex.Unlock()
+		json.NewEncoder(res).Encode("Successfully")
+	}
 }
 
 func (api *MTADebugAPI) handlerSendMessage(res http.ResponseWriter, req *http.Request) {
@@ -168,9 +266,9 @@ func (api *MTADebugAPI) handlerSetBreakpoint(res http.ResponseWriter, req *http.
 	} else {
 		api.Breakpoints = append(api.Breakpoints, breakpoint)
 	}
-	add_command := debugCommand{"set_breakpoint", []string{breakpoint.File, strconv.Itoa(breakpoint.Line)}}
-	api.CommandsServer = append(api.CommandsServer,add_command)
-	api.CommandsClient = append(api.CommandsClient,add_command)
+	add_command := debugCommand{"set_breakpoint", []string{breakpoint.File, strconv.Itoa(breakpoint.Line)}, 0}
+	api.CmdServer.Commands = append(api.CmdServer.Commands,add_command)
+	api.CmdClient.Commands = append(api.CmdClient.Commands,add_command)
 
 	json.NewEncoder(res).Encode(&breakpoint)
 }
@@ -219,9 +317,9 @@ func (api *MTADebugAPI) handlerSetResumeModeServer(res http.ResponseWriter, req 
 		api.ServerContext = context
 		json.NewEncoder(res).Encode(&api.ServerContext)
 
-		add_command := debugCommand{"set_resume_mode", []string{strconv.Itoa(context.ResumeMode)}}
-		api.CommandsServer = append(api.CommandsServer,add_command)
-		api.CommandsClient = append(api.CommandsClient,add_command)
+		add_command := debugCommand{"set_resume_mode", []string{strconv.Itoa(context.ResumeMode)}, 0}
+		api.CmdServer.Commands = append(api.CmdServer.Commands,add_command)
+		api.CmdClient.Commands = append(api.CmdClient.Commands,add_command)
 	}
 }
 

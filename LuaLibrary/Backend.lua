@@ -47,7 +47,7 @@ end
 --      (must be serializable using toJSON)
 -- callback (function(responseData)): Called when the
 --       unserialized response arrives.
---       If not provided, returns the response object synchronously
+--       If callback == false, returns the response object synchronously
 -----------------------------------------------------------
 function MTATD.Backend:request(name, data, callback)
     local responseObject = nil
@@ -72,7 +72,7 @@ function MTATD.Backend:request(name, data, callback)
         serialized
     )
 
-    if not callback then
+    if callback == false then
         repeat
             debugSleep(25)
         until responseObject ~= nil
