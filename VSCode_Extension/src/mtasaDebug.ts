@@ -308,15 +308,14 @@ class MTASADebugSession extends DebugSession {
 		
 		// TODO: Use variablesReference to show the entries in tables
 		if (id && id.startsWith('global')) {
-			for (const name in debugContext.globalVariables) {
-				if (debugContext.globalVariables.hasOwnProperty(name) && name != '__isObject') {
-					variables.push({
-						name: name,
-						type: 'string', // TODO: Map type properly
-						value: debugContext.globalVariables[name],
-						variablesReference: 0
-					});
-				}
+			for (var i = 0; debugContext.globalVariables[i]; i++) {
+				const obj = debugContext.globalVariables[i];
+				variables.push({
+					name: obj.name,
+					type:  obj.type,
+					value: obj.value,
+					variablesReference: obj.varRef
+				});
 			}
 
 			response.body = {

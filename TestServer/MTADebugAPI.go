@@ -25,8 +25,6 @@ type MTADebugAPI struct {
 	CmdServer CommandInterface
 	CmdClient CommandInterface
 
-	VariableRequestAnswers map[string][]DebugVariable
-
 	Info      debugeeInfo
 	MTAServer *MTAServer
 }
@@ -72,7 +70,7 @@ type debugContext struct {
 	ResumeMode       int               `json:"resume_mode"`
 	File             string            `json:"current_file"`
 	Line             int               `json:"current_line"`
-	GlobalVariables  map[string]string `json:"global_variables"`
+	GlobalVariables  []DebugVariable   `json:"global_variables"`
 	Traceback  	     string            `json:"traceback"`
 }
 
@@ -97,8 +95,6 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	api.Messages = []debugMessage{}
 	api.CmdServer = CommandInterface{[]debugCommand{}, map[int]string{}, sync.RWMutex{}}
 	api.CmdClient = CommandInterface{[]debugCommand{}, map[int]string{}, sync.RWMutex{}}
-
-	api.VariableRequestAnswers = map[string][]DebugVariable{}
 
 	// Register routes
 	router.HandleFunc("/get_info", api.handlerGetInfo)

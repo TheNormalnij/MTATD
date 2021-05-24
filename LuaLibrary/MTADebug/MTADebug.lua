@@ -281,6 +281,16 @@ function MTATD.MTADebug:_getResourceBasePath()
     end
 end
 
+local function handleVariable( name, value )
+    local valueType = type(value)
+    return {
+        name = tostring(name),
+        value = tostring(value),
+        type = valueType,
+        varRef = valueType == "table" and ref(value) or  0,
+    }
+end
+
 -----------------------------------------------------------
 -- Returns the names and values of the local variables
 -- at the "current" stack frame
@@ -290,16 +300,12 @@ end
 function MTATD.MTADebug:_getLocalVariables(stackLevel)
     local variables = {} -- __isObject ensures that toJSON creates a JSON object rather than an array
 
+    local name, value
     -- Get the values of up to 50 local variables
     for i = 1, 200 do
-        local name, value = debug.getlocal(stackLevel, i)
+        name, value = debug.getlocal(stackLevel, i)
         if name then
-            table.insert(variables, {
-                name = tostring(name),
-                value = tostring( value ),
-                type = type( value ),
-                varRef = 0,
-            })
+            table.insert(variables, handleVariable( name, value ) )
         else
             break;
         end
@@ -322,12 +328,7 @@ function MTATD.MTADebug:_getUpvalueVariables(stackLevel)
         for i = 1, 200 do
             local name, value = debug.getupvalue(func, i)
             if name then
-                table.insert(variables, {
-                    name = tostring(name),
-                    value = tostring( value ),
-                    type = type( value ),
-                    varRef = 0,
-                })
+                table.insert(variables, handleVariable( name, value ) )
             else
                 break
             end
@@ -352,8 +353,10 @@ function MTATD.MTADebug:_getGlobalVariables()
             if not self._ignoreGlobalList[k] then
                 counter = counter + 1
                 
-                if counter <= 50 then
-                    variables[k] = tostring(v)
+                if counter <= 200 then
+                    table.insert(variables, handleVariable( k, v ) )
+                else
+                    break
                 end
             end
         end
@@ -465,8 +468,8 @@ function MTATD.MTADebug.Commands:set_resume_mode( resumeMode )
     return tostring( self._resumeMode )
 end
 
-function MTATD.MTADebug.Commands:request_variable( ref, id )
-    if id then
+function MTATD.MTADebug.Commands:request_variable( reference, id )
+    if id and id ~= "" then
         local varType, stackLevel = id:match( "^(%w+)_(%d+)" )
         stackLevel = tonumber( stackLevel )
         local variables
@@ -482,7 +485,14 @@ function MTATD.MTADebug.Commands:request_variable( ref, id )
 
         return toJSON(variables, true):gsub("%[(.*)%]", "%1")
     else
-        return toJSON({}, true):gsub("%[(.*)%]", "%1")
+        local variables = {}
+        local refValue = deref(tonumber(reference))
+        if type(refValue) == "table" then
+            for key, value in pairs(refValue) do
+                table.insert(variables, handleVariable( key, value ))
+            end
+        end
+        return toJSON(variables, true):gsub("%[(.*)%]", "%1")
     end
 end
 
