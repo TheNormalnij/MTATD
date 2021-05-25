@@ -183,6 +183,7 @@ function MTATD.MTADebug:runDebugLoop(stackLevel)
         end
     until continue
 
+    self._stoppedStackLevel = nil
     outputDebugString("Resuming execution...")
 end
 
@@ -373,9 +374,8 @@ end
 -- Returns the result as the 1st parameter and maybe an
 -- error as the 2nd parameter
 -----------------------------------------------------------
-function MTATD.MTADebug:_runString(codeString)
+function MTATD.MTADebug:_runString(codeString, env)
     -- Hacked in from 'runcode' resource
-	local notReturned
 
 	-- First we test with return
 	local commandFunction, errorMsg = loadstring("return "..codeString)
@@ -387,6 +387,8 @@ function MTATD.MTADebug:_runString(codeString)
 		-- It still failed.  Print the error message and stop the function
 		return nil, errorMsg
 	end
+
+    setfenv(commandFunction, env or _G)
 
 	-- Finally, lets execute our function
 	local results = { pcall(commandFunction) }
@@ -513,7 +515,69 @@ function MTATD.MTADebug.Commands:run_code( strCode )
             returnString = "Command syntax error"
         end
     else
-        returnString, errorString = self:_runString(strCode)
+
+        local env
+        if self._stoppedStackLevel then
+            local stackLevel = self._stoppedStackLevel + 2
+            local debugFun = debug.getinfo(self._stoppedStackLevel + 2, "f").func
+            local localVariables, localStack = {}, {}
+            local upvalueVariables, upvalueStack = {}, {}
+            local varName, varValue, i
+
+            i = 1
+            while true do
+                varName, varValue = debug.getlocal( stackLevel, i )
+                if varName then
+                    localVariables[varName] = varValue
+                    localStack[varName] = i
+                    i = i + 1
+                else
+                    break
+                end
+            end
+
+            i = 1
+            while true do
+                varName, varValue = debug.getupvalue( debugFun, i )
+                if varName then
+                    upvalueVariables[varName] = varValue
+                    upvalueStack[varName] = i
+                    i = i + 1
+                else
+                    break
+                end
+            end
+
+            env = setmetatable( {},
+                {
+                    __index = function( _, key )
+                        if localStack[key] then
+                            return localVariables[key]
+                        elseif upvalueStack[key] then
+                            return upvalueVariables[key]
+                        else
+                            return _G[key]
+                        end
+                    end,
+
+                    __newindex = function( _, key, value )
+                        if localStack[key] then
+                            localVariables[key] = value
+                            debug.setlocal(stackLevel + 4, localStack[key], value)
+                        elseif upvalueStack[key] then
+                            upvalueVariables[key] = value
+                            debug.setupvalue(debugFun, upvalueStack[key], value)
+                        else
+                            _G[key] = value
+                        end
+                    end,
+                }
+            )
+        else
+            env = _G
+        end
+
+        returnString, errorString = self:_runString(strCode, env)
         returnString = returnString or errorString
     end
     return tostring(returnString)
