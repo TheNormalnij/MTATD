@@ -465,6 +465,15 @@ end
 
 MTATD.MTADebug.Commands = {}
 
+function MTATD.MTADebug.Commands:set_breakpoint( file, line )
+    line = tonumber(line)
+    if not self._breakpoints[file] then
+        self._breakpoints[file] = {}
+    end
+    self._breakpoints[file][line] = true
+    return
+end
+
 function MTATD.MTADebug.Commands:set_resume_mode( resumeMode )
     self._resumeMode = tonumber( resumeMode )
     return tostring( self._resumeMode )
