@@ -82,9 +82,7 @@ class MTASADebugSession extends DebugSession {
 
 	private _backendUrl: string = 'http://localhost:51237';
 
-	private _resourceName: string;
 	private _resourcesPath: string;
-	private _resourcePath: string;
 
 	private _lastCommandID = 1;
 
@@ -141,15 +139,8 @@ class MTASADebugSession extends DebugSession {
 
 				// Apply path from response
 				const info = JSON.parse(body);
-				if (!info.resource_name || !info.resource_path)
-				{
-					// Try again soon
-					return;
-				}
 
-				this._resourceName = info.resource_name;
 				this._resourcesPath = normalize(`${args.serverpath}/mods/deathmatch/resources/`); // TODO
-				this._resourcePath = normalize(this._resourcesPath + info.resource_path);
 
 				// Start timer that polls for the execution being paused
 				if (!this._pollPausedTimer)
@@ -173,11 +164,11 @@ class MTASADebugSession extends DebugSession {
 	 */
 	protected restartRequest(response: DebugProtocol.RestartResponse, args: DebugProtocol.RestartArguments): void {
 		// Send restart command to server
-		request(this._backendUrl + '/MTAServer/command', {
-			json: { command: `restart ${this._resourceName}` }
-		}, () => {
-			this.sendResponse(response);
-		});
+		// request(this._backendUrl + '/MTAServer/command', {
+		// 	json: { command: `restart ${this._resourceName}` }
+		// }, () => {
+		// 	this.sendResponse(response);
+		// });
 	}
 
 	/**
@@ -261,14 +252,13 @@ class MTASADebugSession extends DebugSession {
 		for (var i = 0; lines[i]; i++)
 		{
 			const frameInfo = reg.exec(lines[i]);
-			const fullFilePath = frameInfo[1];
+			const path = frameInfo[1];
 			const line = Number(frameInfo[2]);
 			const functionName = frameInfo[3];
 
-	        const shortFilePath = fullFilePath.match(/(?:\[.*\]\/)?.*?\/(.*)$/);
-	        const currentFilePath = this._resourcePath + (shortFilePath ? shortFilePath[1] : fullFilePath);
-			frames.push(new StackFrame(i, functionName, new Source(basename(currentFilePath),
-					this.convertDebuggerPathToClient(currentFilePath)),
+	        const fullFilePath = this._resourcesPath + path
+			frames.push(new StackFrame(i, functionName, new Source(basename(path),
+					this.convertDebuggerPathToClient(fullFilePath)),
 					this.convertDebuggerLineToClient(line), 0));
 
 			framesCount++; 
@@ -402,8 +392,23 @@ class MTASADebugSession extends DebugSession {
 	 */
 	protected evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {
 		const parent = this
+
+		var command
+		var commad_args
+
+		if (args.expression[0] == "!") {
+			const reg = /!([^ ]+) ?(.*)/;
+			const cmd = reg.exec(args.expression);
+			command = cmd[1]
+			commad_args = cmd[2].split( " " );
+		}
+		else {
+			command = "run_code";
+			commad_args = [ args.expression ];
+		}
+
 		request(this._backendUrl + '/MTADebug/push_command_server', {
-			json: { command: "run_code", args: [ args.expression ], answer_id: this._lastCommandID++ }
+			json: { command: command, args: commad_args, answer_id: this._lastCommandID++ }
 		}, (err, status, body) => {
 			if (!err && status.statusCode === 200) {
 				//const commandResult = JSON.parse(JSON.stringify(body));
@@ -429,8 +434,7 @@ class MTASADebugSession extends DebugSession {
 					const obj = objs[i];
 					var event = new OutputEvent(obj.message + '\n', MessageTypes[obj.type]);
 					if (obj.file) {
-						const filePath = obj.file.match(/(?:\[.*\]\/)?.*?\/(.*)$/);
-						(<DebugProtocol.OutputEvent>event).body.source = new Source(this._resourcePath + filePath[1]);
+						(<DebugProtocol.OutputEvent>event).body.source = new Source(basename(obj.file), this._resourcesPath + obj.file);
 						(<DebugProtocol.OutputEvent>event).body.line = obj.line;
 					}
 					(<DebugProtocol.OutputEvent>event).body.variablesReference = obj.varRef;
@@ -452,8 +456,6 @@ class MTASADebugSession extends DebugSession {
 					this._serverContext.line = obj.current_line;
 					this._serverContext.traceback = obj.traceback;
 
-					this._serverContext.localVariables = obj.local_variables;
-					this._serverContext.upvalueVariables = obj.upvalue_variables;
 					this._serverContext.globalVariables = obj.global_variables;
 
 					this._serverContext.running = false;
@@ -468,14 +470,12 @@ class MTASADebugSession extends DebugSession {
 
 				// Check if paused
 				if (obj.resume_mode == ResumeMode.Paused
-					&& this._serverContext.running) {
+					&& this._clientContext.running) {
 					// Store the breakpoint's file and line
 					this._clientContext.file = obj.current_file;
 					this._clientContext.line = obj.current_line;
 					this._clientContext.traceback = obj.traceback;
 
-					this._clientContext.localVariables = obj.local_variables;
-					this._clientContext.upvalueVariables = obj.upvalue_variables;
 					this._clientContext.globalVariables = obj.global_variables;
 
 					this._clientContext.running = false;
@@ -492,8 +492,7 @@ class MTASADebugSession extends DebugSession {
 	 * @return The relative path
 	 */
 	private getRelativeResourcePath(absolutePath: string) {
-		//const relativePath = normalize(absolutePath).toLowerCase().replace(this._resourcePath.toLowerCase(), '');
-		const matches = normalize(absolutePath).replace(/\\/g, '/').toLowerCase().match(/.*?resources\/(?:\[.*\]\/)?.*?\/(.*)$/);
+		const matches = normalize(absolutePath).replace(/\\/g, '/').match(/.*?mods\/deathmatch\/resources\/((?:\[.*\]\/)?.*?\/.*)$/);
 		const relativePath: string = matches.length > 0 ? matches[1] : absolutePath;
 
 		return relativePath;

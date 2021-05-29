@@ -1,0 +1,28 @@
+<meta>
+    <info type="script" version="1.3"></info>
+    <oop>true</oop>
+    <script src="EnvBackup_shared.lua" type="shared"></script>
+    <script src="Class_shared.lua" type="shared"></script>
+    <script src="Backend_shared.lua" type="shared"></script>
+    <script src="ResourceEnv_shared.lua" type="shared"></script>
+
+    <script src="MTADebug_shared.lua" type="shared"></script>
+    <script src="MTADebug_client.lua" type="client"></script>
+    <script src="MTADebug_server.lua" type="server"></script>
+
+    <script src="ResourceLoader_shared.lua" type="shared"></script>
+    <script src="ResourceLoader_client.lua" type="client"></script>
+    <script src="ResourceLoader_server.lua" type="server"></script>
+
+	<script src="main_shared.lua" type="shared"></script>
+	<aclrequest>
+		<right name="function.startResource" access="true"/>
+		<right name="function.stopResource" access="true"/>
+		<right name="function.restartResource" access="true"/>
+		<right name="function.fetchRemote" access="true" />
+		<right name="function.fetchRemote" access="true" />
+		<right name="function.executeCommandHandler" access="true" />
+
+		<right name="general.ModifyOtherObjects" access="true"/>
+	</aclrequest>
+</meta>

@@ -11,10 +11,11 @@ echo "Compress binary"
 
 echo "Create Lua bundle"
 cd LuaLibrary
-python Minify.py 0
-mv MTATD.bundle.lua ../VSCode_Extension/MTATD.bundle.lua
+mkdir ../VSCode_Extension/debugger_mta_resource
+cp -r debugger/* ../VSCode_Extension/debugger_mta_resource
 cd ..
 
 echo "Build VSCode extension vsix"
 cd VSCode_Extension
 vsce package
+cd ..

@@ -6,7 +6,7 @@
 ------------------------------------------------------------
 
 -- Namespace for the MTADebug library
-MTATD.MTADebug = MTATD.Class()
+MTADebug = Class()
 local debug = debug
 
 -- Resume mode enumeration
@@ -17,16 +17,15 @@ local ResumeMode = {
     StepOver = 3,
     StepOut = 4
 }
-local RequestSuffix = triggerClientEvent and "_server" or "_client"
 
-local MesageTypes = {
+MesageTypes = {
     console = 0,
     stdout = 1,
     stderr = 2,
     telemetry = 3, 
 }
 
-local MessageLevelToType = {
+MessageLevelToType = {
     [0] = MesageTypes.console;
     [1] = MesageTypes.stderr;
     [2] = MesageTypes.stdout;
@@ -36,32 +35,23 @@ local MessageLevelToType = {
 -----------------------------------------------------------
 -- Constructs the MTADebug manager
 --
--- backend (MTATD.Backend): The MTATD backend instance
+-- backend (Backend): The MTATD backend instance
 -----------------------------------------------------------
-function MTATD.MTADebug:constructor(backend)
+function MTADebug:constructor(backend)
+    self._resourcePathes = {}
+    self._debugLinks = {}
+    self._debugLinksMap = {}
+    self._lastDebugLink = 0
     self._backend = backend
     self._breakpoints = {}
     self._resumeMode = ResumeMode.Resume
     self._stepOverStackSize = 0
     self._ignoreGlobalList = self:_composeGlobalIgnoreList()
 
+    self._started_resources = {}
+
     -- Enable development mode
     setDevelopmentMode(true)
-
-    -- Send info about us to backend
-    if triggerClientEvent then -- Only set the info on the server
-        self._backend:request("MTADebug/set_info", {
-            resource_name = getResourceName(getThisResource()),
-            resource_path = self:_getResourceBasePath()
-        })
-    end
-
-
-    -- Add messages output
-    local tag = triggerClientEvent and "[Server] " or "[Client] "
-    addEventHandler( triggerClientEvent and "onDebugMessage" or "onClientDebugMessage", root, function(message, level, file, line)
-        self._backend:sendMessage(("%s %s"):format(tag, message), MessageLevelToType[level], file, line)
-    end )
 
     -- Wait a bit (so that the backend receives the breakpoints)
     debugSleep(1000)
@@ -85,12 +75,15 @@ function MTATD.MTADebug:constructor(backend)
         500,
         0
     )
+
+    -- Specific client or server init
+    self:_platformInit()
 end
 
 -----------------------------------------------------------
 -- Disposes the MTADebug instance (e.g. stops polling)
 -----------------------------------------------------------
-function MTATD.MTADebug:destructor()
+function MTADebug:destructor()
     if self._updateTimer and isTimer(self._updateTimer) then
         killTimer(self._updateTimer)
     end
@@ -104,7 +97,7 @@ end
 --                    (this should always be 'line')
 -- nextLineNumber (number): The next line that is executed
 -----------------------------------------------------------
-function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
+function MTADebug:_hookFunction(hookType, nextLineNumber)
     if hookType == "call" then
         if self._resumeMode == ResumeMode.StepOver then
             self._stepOverStackSize = self._stepOverStackSize + 1
@@ -121,6 +114,10 @@ function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
     -- Get some debug info
     local debugInfo = debug.getinfo(3, "S")
     local sourcePath =  debugInfo.source:gsub("\\", "/"):sub(2) -- Cut off @ (first character)
+    local link = tonumber(sourcePath)
+    if link then
+        sourcePath = self._debugLinks[link]
+    end
 
     -- Is there a breakpoint and pending line step?
     if (not self:hasBreakpoint(sourcePath, nextLineNumber) and self._resumeMode ~= ResumeMode.StepInto)
@@ -130,20 +127,39 @@ function MTATD.MTADebug:_hookFunction(hookType, nextLineNumber)
         return
     end
 
-    outputDebugString("Reached breakpoint")
+    outputDebugString("Reached breakpoint", 3)
 
     self:runDebugLoop(4)
 end
 
-function MTATD.MTADebug:runDebugLoop(stackLevel)
+function MTADebug:runDebugLoop(stackLevel, message)
     self._stoppedStackLevel = stackLevel
     self._resumeMode = ResumeMode.Paused
 
     local traceback = {}
     local skip = 2
+    local path, lineNumber, dest, link
     for line in debug.traceback("trace", stackLevel):gmatch( "[^\r\n]+" ) do
         if skip == 0 then
-            table.insert( traceback, line:sub(2) )
+            path, lineNumber, dest = line:match( "\t(.-):(%d*):? in (.+)" )
+            link = path:match( 'string "&(%d+)"' )
+
+            if link then
+                path = self._debugLinks[ tonumber( link ) ]
+            end
+            if dest:find("^function") then
+                dest = dest:sub(10)
+            end
+            if lineNumber then
+                line = ("%s:%s: in %s"):format(path, lineNumber, dest)
+            else
+                line = ("%s: in %s"):format(path, dest)
+            end
+            table.insert( traceback, line )
+            if dest == "main chunk" then
+                -- Don't show trace inside debugger resource
+                break;
+            end
         else
             skip = skip - 1
         end
@@ -156,7 +172,7 @@ function MTATD.MTADebug:runDebugLoop(stackLevel)
     nextLineNumber = tonumber(nextLineNumber) or 0
 
     -- Tell backend that we reached a breakpoint
-    self._backend:request("MTADebug/set_resume_mode"..RequestSuffix, {
+    self._backend:requestPlatform("set_resume_mode", {
         resume_mode = ResumeMode.Paused,
         current_file = sourcePath,
         current_line = nextLineNumber,
@@ -170,7 +186,7 @@ function MTATD.MTADebug:runDebugLoop(stackLevel)
     local continue = false
     repeat
         -- Ask backend
-        local commands = self._backend:request("MTADebug/pull_commands"..RequestSuffix, {}, false)
+        local commands = self._backend:requestPlatform("pull_commands", {}, false)
 
         if commands then
             self:_handleCommands( commands )
@@ -184,7 +200,39 @@ function MTATD.MTADebug:runDebugLoop(stackLevel)
     until continue
 
     self._stoppedStackLevel = nil
-    outputDebugString("Resuming execution...")
+    outputDebugString("Resuming execution...", 3)
+end
+
+function MTADebug:genDebugLink( resource, filePath )
+    if self._debugLinksMap[resource] then
+        local debugLink = self._debugLinksMap[resource][filePath]
+        if debugLink then
+            return "&" .. debugLink
+        else
+            debugLink = self._lastDebugLink + 1
+            self._lastDebugLink = debugLink
+            self._debugLinksMap[resource][filePath] = debugLink
+            self._debugLinks[debugLink] = self._resourcePathes[resource] .. filePath
+            return "&" .. debugLink
+        end
+    else
+        debugLink = self._lastDebugLink + 1
+        self._lastDebugLink = debugLink
+        self._debugLinksMap[resource] = { [filePath] = debugLink }
+        self._debugLinks[debugLink] = self._resourcePathes[resource] .. filePath
+        return "&" .. debugLink
+    end
+end
+
+function MTADebug:fixPathInString(str)
+    return str:gsub( '%[string "&(%d+)"%]', function(link)
+        link = tonumber(link)
+        return self._debugLinks[link]
+    end )
+end
+
+function MTADebug:getFullFilePath( resource, filePath )
+    return self._resourcePathes[resource] .. filePath
 end
 
 -----------------------------------------------------------
@@ -196,12 +244,21 @@ end
 --
 -- Returns true if there is a breakpoint, false otherwise
 -----------------------------------------------------------
-function MTATD.MTADebug:hasBreakpoint(fileName, lineNumber)
-    local breakpoints = self._breakpoints[fileName:lower()]
+function MTADebug:hasBreakpoint(fileName, lineNumber)
+    local breakpoints = self._breakpoints[fileName]
     if breakpoints then
         return breakpoints[lineNumber]
     end
     return false
+end
+
+function MTADebug:_setBreakPoint(fileName, lineNumber)
+    local breakpoints = self._breakpoints[fileName]
+    if breakpoints then
+        breakpoints[lineNumber] = true
+    else
+        self._breakpoints[fileName] = { [lineNumber] = true }
+    end
 end
 
 -----------------------------------------------------------
@@ -211,20 +268,18 @@ end
 -- wait (bool): true to wait till the response is available,
 --              false otherwise (defaults to 'false')
 -----------------------------------------------------------
-function MTATD.MTADebug:_fetchBreakpoints(wait)
+function MTADebug:_fetchBreakpoints(wait)
     local responseAvailable = false
 
-    self._backend:request("MTADebug/get_breakpoints", {},
+    self._backend:request("get_breakpoints", {},
         function(breakpoints)
-            local basePath = self:_getResourceBasePath()
-
             -- Clear old breakpoints
             self._breakpoints = {}
 
             -- Add new breakpoints
             for k, breakpoint in ipairs(breakpoints or {}) do
                 -- Prepend resource base path
-                breakpoint.file = basePath..breakpoint.file
+                breakpoint.file = breakpoint.file
 
                 if not self._breakpoints[breakpoint.file] then
                     self._breakpoints[breakpoint.file] = {}
@@ -244,42 +299,15 @@ function MTATD.MTADebug:_fetchBreakpoints(wait)
     end
 end
 
-function MTATD.MTADebug:_fetchCommands(wait)
-    local responseAvailable = false
-
-    self._backend:request("MTADebug/pull_commands"..RequestSuffix, {},
+function MTADebug:_fetchCommands()
+    self._backend:requestPlatform("pull_commands", {},
         function(info)
             -- Continue in case of a failure (to prevent a freeze)
             if info then
                 self:_handleCommands( info )
             end
-            responseAvailable = true
         end
     )
-
-    -- Wait
-    if wait then
-        repeat
-            debugSleep(25)
-        until responseAvailable
-    end
-end
-
------------------------------------------------------------
--- Builds the base path for a resource (the path used
--- in error messages)
---
--- Returns the built base path
------------------------------------------------------------
-function MTATD.MTADebug:_getResourceBasePath()
-    local thisResource = getThisResource()
-
-    if triggerClientEvent then -- Is server?
-        local organizationalPath = getResourceOrganizationalPath(thisResource):lower()
-        return (organizationalPath ~= "" and organizationalPath.."/" or "")..getResourceName(thisResource):lower().."/"
-    else
-        return getResourceName(thisResource):lower().."/"
-    end
 end
 
 local function handleVariable( name, value )
@@ -298,7 +326,7 @@ end
 --
 -- Returns a table indexed by the variable name
 -----------------------------------------------------------
-function MTATD.MTADebug:_getLocalVariables(stackLevel)
+function MTADebug:_getLocalVariables(stackLevel)
     local variables = {} -- __isObject ensures that toJSON creates a JSON object rather than an array
 
     local name, value
@@ -321,7 +349,7 @@ end
 --
 -- Returns a table indexed by the variable name
 -----------------------------------------------------------
-function MTATD.MTADebug:_getUpvalueVariables(stackLevel)
+function MTADebug:_getUpvalueVariables(stackLevel)
     local variables = { }
     local func = debug.getinfo(stackLevel, "f").func
     
@@ -344,11 +372,11 @@ end
 --
 -- Returns a table indexed by the variable name
 -----------------------------------------------------------
-function MTATD.MTADebug:_getGlobalVariables()
+function MTADebug:_getGlobalVariables()
     local counter = 0
     local variables = { }
 
-    for k, v in pairs(_G) do
+    for k, v in pairs( CurrentEnv ) do
         if type(v) ~= "function" and type(k) == "string" then
             -- Ignore variables in ignore list
             if not self._ignoreGlobalList[k] then
@@ -374,7 +402,7 @@ end
 -- Returns the result as the 1st parameter and maybe an
 -- error as the 2nd parameter
 -----------------------------------------------------------
-function MTATD.MTADebug:_runString(codeString, env)
+function MTADebug:_runString(codeString, env)
     -- Hacked in from 'runcode' resource
 
 	-- First we test with return
@@ -425,7 +453,7 @@ end
 --
 -- Returns a key-ed table that contains the ignore list
 -----------------------------------------------------------
-function MTATD.MTADebug:_composeGlobalIgnoreList()
+function MTADebug:_composeGlobalIgnoreList()
     -- Put all elements below _G into the ignore list
     -- since the Debugger is the first script that is executed, it's absolutely fine
     local ignoreList = {}
@@ -437,7 +465,7 @@ function MTATD.MTADebug:_composeGlobalIgnoreList()
     return ignoreList
 end
 
-function MTATD.MTADebug:_handleCommands( commands )
+function MTADebug:_handleCommands( commands )
     if #commands == 0 then
         return
     end
@@ -459,27 +487,59 @@ function MTATD.MTADebug:_handleCommands( commands )
         end
     end
     if #results ~= 0 then
-        self._backend:request("MTADebug/push_commands_result"..RequestSuffix, results )
+        self._backend:requestPlatform("push_commands_result", results )
     end
 end
 
-MTATD.MTADebug.Commands = {}
-
-function MTATD.MTADebug.Commands:set_breakpoint( file, line )
-    line = tonumber(line)
-    if not self._breakpoints[file] then
-        self._breakpoints[file] = {}
-    end
-    self._breakpoints[file][line] = true
-    return
+-----------------------------------------------------------
+-- Run function in debug mode
+-----------------------------------------------------------
+function MTADebug:debugRun(fun)
+    xpcall(fun, function(errorMessage)
+        errorMessage = self:fixPathInString( errorMessage )
+        local file, line = errorMessage:match( "^(.+):(%d+):.+" )
+        self:outputDebugString( errorMessage, 1, file, tonumber( line ) )
+        self:runDebugLoop(3, errorMessage)
+    end)
 end
 
-function MTATD.MTADebug.Commands:set_resume_mode( resumeMode )
+-----------------------------------------------------------
+-- Send message to debug console
+-----------------------------------------------------------
+local allowMessages = true
+
+function MTADebug:sendMessage(message, type, file, line, variableReference)
+    if allowMessages then
+        self._backend:request("send_message", {
+            message = message,
+            type = type,
+            file = file,
+            line = line,
+            varRef = variableReference,
+        })
+    end
+end
+
+function MTADebug:outputDebugString( message, level, file, line )
+    level = level or 0
+    allowMessages = false
+    outputDebugString( message, level )
+    allowMessages = true
+    self:sendMessage( message, MessageLevelToType[level], file, line )
+end
+
+MTADebug.Commands = {}
+
+function MTADebug.Commands:set_breakpoint( file, line )
+    self:_setBreakPoint( file, tonumber( line ) )
+end
+
+function MTADebug.Commands:set_resume_mode( resumeMode )
     self._resumeMode = tonumber( resumeMode )
     return tostring( self._resumeMode )
 end
 
-function MTATD.MTADebug.Commands:request_variable( reference, id )
+function MTADebug.Commands:request_variable( reference, id )
     if id and id ~= "" then
         local varType, stackLevel = id:match( "^(%w+)_(%d+)" )
         stackLevel = tonumber( stackLevel )
@@ -507,88 +567,72 @@ function MTATD.MTADebug.Commands:request_variable( reference, id )
     end
 end
 
-function MTATD.MTADebug.Commands:run_code( strCode )
+function MTADebug.Commands:run_code( strCode )
     local returnString
+    local env
+    if self._stoppedStackLevel then
+        local stackLevel = self._stoppedStackLevel + 2
+        local debugFun = debug.getinfo(self._stoppedStackLevel + 2, "f").func
+        local localVariables, localStack = {}, {}
+        local upvalueVariables, upvalueStack = {}, {}
+        local varName, varValue, i
 
-    if strCode:sub(1,1) == "/" then
-        local command, args = strCode:match( "/([^ ]+) ?(.*)" )
-        if command then
-            local status
-            if triggerClientEvent then
-                status = executeCommandHandler( command, getRandomPlayer() or root, args )
+        i = 1
+        while true do
+            varName, varValue = debug.getlocal( stackLevel, i )
+            if varName then
+                localVariables[varName] = varValue
+                localStack[varName] = i
+                i = i + 1
             else
-                status = executeCommandHandler( command, args )
+                break
             end
-            returnString = status and "Command executed" or "Can't execute command"
-        else
-            returnString = "Command syntax error"
         end
+
+        i = 1
+        while true do
+            varName, varValue = debug.getupvalue( debugFun, i )
+            if varName then
+                upvalueVariables[varName] = varValue
+                upvalueStack[varName] = i
+                i = i + 1
+            else
+                break
+            end
+        end
+
+        env = setmetatable( {},
+            {
+                __index = function( _, key )
+                    if localStack[key] then
+                        return localVariables[key]
+                    elseif upvalueStack[key] then
+                        return upvalueVariables[key]
+                    else
+                        return _G[key]
+                    end
+                end,
+
+                __newindex = function( _, key, value )
+                    if localStack[key] then
+                        localVariables[key] = value
+                        debug.setlocal(stackLevel + 4, localStack[key], value)
+                    elseif upvalueStack[key] then
+                        upvalueVariables[key] = value
+                        debug.setupvalue(debugFun, upvalueStack[key], value)
+                    else
+                        _G[key] = value
+                    end
+                end,
+            }
+        )
     else
-
-        local env
-        if self._stoppedStackLevel then
-            local stackLevel = self._stoppedStackLevel + 2
-            local debugFun = debug.getinfo(self._stoppedStackLevel + 2, "f").func
-            local localVariables, localStack = {}, {}
-            local upvalueVariables, upvalueStack = {}, {}
-            local varName, varValue, i
-
-            i = 1
-            while true do
-                varName, varValue = debug.getlocal( stackLevel, i )
-                if varName then
-                    localVariables[varName] = varValue
-                    localStack[varName] = i
-                    i = i + 1
-                else
-                    break
-                end
-            end
-
-            i = 1
-            while true do
-                varName, varValue = debug.getupvalue( debugFun, i )
-                if varName then
-                    upvalueVariables[varName] = varValue
-                    upvalueStack[varName] = i
-                    i = i + 1
-                else
-                    break
-                end
-            end
-
-            env = setmetatable( {},
-                {
-                    __index = function( _, key )
-                        if localStack[key] then
-                            return localVariables[key]
-                        elseif upvalueStack[key] then
-                            return upvalueVariables[key]
-                        else
-                            return _G[key]
-                        end
-                    end,
-
-                    __newindex = function( _, key, value )
-                        if localStack[key] then
-                            localVariables[key] = value
-                            debug.setlocal(stackLevel + 4, localStack[key], value)
-                        elseif upvalueStack[key] then
-                            upvalueVariables[key] = value
-                            debug.setupvalue(debugFun, upvalueStack[key], value)
-                        else
-                            _G[key] = value
-                        end
-                    end,
-                }
-            )
-        else
-            env = _G
-        end
-
-        returnString, errorString = self:_runString(strCode, env)
-        returnString = returnString or errorString
+        env = _G
     end
+
+    returnString, errorString = self:_runString(strCode, env)
+    returnString = returnString or errorString
+
     return tostring(returnString)
 end
 

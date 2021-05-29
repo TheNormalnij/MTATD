@@ -4,26 +4,28 @@
 -- LICENSE: See LICENSE in top level directory
 -- PURPOSE: The backend interface (communicates with the backend)
 ------------------------------------------------------------
-MTATD.Backend = MTATD.Class()
+local requestSuffix = triggerClientEvent and "_server" or "_client"
+
+Backend = Class()
 
 -----------------------------------------------------------
 -- Launches the test and debug framework
 -----------------------------------------------------------
-function MTATD.Backend:constructor(host, port)
+function Backend:constructor(host, port)
     -- Build base URL
-    self._baseUrl = ("http://%s:%d/"):format(host, port)
+    self._baseUrl = ("http://%s:%d/MTADebug/"):format(host, port)
 
     -- Connect to backend
     self:connect(host, port)
 
     -- Create subsystems
-    self._debug = MTATD.MTADebug:new(self)
+    self._debug = MTADebug:new(self)
 end
 
 -----------------------------------------------------------
 -- Stops the test and debug framework
 -----------------------------------------------------------
-function MTATD.Backend:destructor()
+function Backend:destructor()
     -- Destroy debugger
     self._debug:delete()
 end
@@ -34,7 +36,7 @@ end
 -- host (string): The hostname or IP
 -- port (number): The port
 -----------------------------------------------------------
-function MTATD.Backend:connect(host, port)
+function Backend:connect(host, port)
     -- Make initial request to check if the backend is running
     -- TODO
 end
@@ -49,7 +51,7 @@ end
 --       unserialized response arrives.
 --       If callback == false, returns the response object synchronously
 -----------------------------------------------------------
-function MTATD.Backend:request(name, data, callback)
+function Backend:request(name, data, callback)
     local responseObject = nil
     local serialized = toJSON(data):gsub("%[(.*)%]", "%1") -- Fix object being embedded into a JSON array
 
@@ -83,17 +85,12 @@ function MTATD.Backend:request(name, data, callback)
     end
 end
 
-function MTATD.Backend:sendMessage(message, type, file, line, variableReference)
-    self:request("MTADebug/send_message", {
-        message = message,
-        type = type,
-        file = file,
-        line = line,
-        varRef = variableReference,
-    })
+function Backend:requestPlatform( name, data, callback )
+    name = name .. requestSuffix
+    return self:request(name, data, callback)
 end
 
-function MTATD.Backend:reportTestResults(testResults)
+function Backend:reportTestResults(testResults)
     -- Build JSON object
     --[[local data = {}
     for testSuite, results in pairs(testResults) do
@@ -102,14 +99,4 @@ function MTATD.Backend:reportTestResults(testResults)
     end]]
 
     self:request("MTAUnit/report_test_results", testResults)
-end
-
------------------------------------------------------------
--- Run function in debug mode
------------------------------------------------------------
-function MTATD.Backend:debugRun(fun)
-    xpcall(fun, function(errorMessage)
-        outputDebugString(errorMessage, 1)
-        self._debug:runDebugLoop(3)
-    end)
 end

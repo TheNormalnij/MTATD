@@ -63,6 +63,9 @@
     "breakpoints": [
       {
         "language": "lua"
+      },
+      {
+        "language": "mtalua"
       }
     ]
   },

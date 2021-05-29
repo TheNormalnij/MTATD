@@ -2,11 +2,9 @@ package main
 
 import (
 	"net/http"
-	"os"
 	"time"
 	"sync"
 	"strconv"
-	"path/filepath"
 	"fmt"
 	"encoding/json"
 
@@ -75,8 +73,7 @@ type debugContext struct {
 }
 
 type debugeeInfo struct {
-	ResourceName string `json:"resource_name"`
-	ResourcePath string `json:"resource_path"`
+	Version string `json:"version"`
 }
 
 func (bp *debugBreakpoint) equals(other *debugBreakpoint) bool {
@@ -140,12 +137,13 @@ func (api *MTADebugAPI) handlerPushCommandServer(res http.ResponseWriter, req *h
 		for ; !hasValue; {
 			api.CmdServer.AnMytex.RLock()
 			result, hasValue = api.CmdServer.Answers[link]
+			api.CmdServer.AnMytex.RUnlock();
 			if hasValue {
+				api.CmdServer.AnMytex.Lock()
 				delete( api.CmdServer.Answers, link )
-				api.CmdServer.AnMytex.RUnlock()
+				api.CmdServer.AnMytex.Unlock()
 				break;
 			} else {
-				api.CmdServer.AnMytex.RUnlock();
 				time.Sleep(1)
 			}
 		}
@@ -194,12 +192,13 @@ func (api *MTADebugAPI) handlerPushCommandClient(res http.ResponseWriter, req *h
 		for ; !hasValue; {
 			api.CmdClient.AnMytex.RLock()
 			result, hasValue = api.CmdClient.Answers[link]
+			api.CmdClient.AnMytex.RUnlock()
 			if hasValue {
+				api.CmdClient.AnMytex.Lock()
 				delete( api.CmdClient.Answers, link )
-				api.CmdClient.AnMytex.RUnlock()
+				api.CmdClient.AnMytex.Unlock()
 				break;
 			} else {
-				api.CmdClient.AnMytex.RUnlock();
 				time.Sleep(1)
 			}
 		}
@@ -315,7 +314,6 @@ func (api *MTADebugAPI) handlerSetResumeModeServer(res http.ResponseWriter, req 
 
 		add_command := debugCommand{"set_resume_mode", []string{strconv.Itoa(context.ResumeMode)}, 0}
 		api.CmdServer.Commands = append(api.CmdServer.Commands,add_command)
-		api.CmdClient.Commands = append(api.CmdClient.Commands,add_command)
 	}
 }
 
@@ -329,6 +327,9 @@ func (api *MTADebugAPI) handlerSetResumeModeClient(res http.ResponseWriter, req 
 	} else {
 		api.ClientContext = context
 		json.NewEncoder(res).Encode(&api.ClientContext)
+
+		add_command := debugCommand{"set_resume_mode", []string{strconv.Itoa(context.ResumeMode)}, 0}
+		api.CmdClient.Commands = append(api.CmdClient.Commands,add_command)
 	}
 }
 
@@ -344,11 +345,6 @@ func (api *MTADebugAPI) handlerSetInfo(res http.ResponseWriter, req *http.Reques
 	if err != nil {
 		panic(err)
 	} else {
-		if api.Info.ResourcePath != "" {
-			// Check if bundle is up to date
-			api.MTAServer.UpdateDebugLuaBundle(api.MTAServer.GetResourcePath()+api.Info.ResourcePath+"MTATD.bundle.lua", filepath.Dir(os.Args[0])+"./MTATD.bundle.lua")
-		}
-
 		json.NewEncoder(res).Encode(&api.Info)
 	}
 }
