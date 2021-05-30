@@ -31,7 +31,7 @@ Make then sure you insert a valid `serverpath` (the path to the server folder **
 
 ## Commands
 
-`!start resourceName` - Start resource
-`!stop resourceName` -  Stop resource
-`!restart resourceName` -  Restart resource
-`!start_debug resourceName` - Start resource in debug mode
+* `!start resourceName` - Start resource
+* `!stop resourceName` -  Stop resource
+* `!restart resourceName` -  Restart resource
+* `!start_debug resourceName` - Start resource in debug mode
