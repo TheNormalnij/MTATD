@@ -93,14 +93,10 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         copyFolderRecursiveSync( path_join( extensionPath, "/debugger_mta_resource/" ) , path_join( workspacePath, "/[debugger]/debugger/" ) );
-
-        // Copy file
-        //fs.createReadStream(`${extensionPath}/MTATD.bundle.lua`).pipe(fs.createWriteStream(`${workspacePath}/MTATD.bundle.lua`));
     }));
 }
 
 function copyFileSync( source, target ) {
-
     var targetFile = target;
 
     // If target is a directory, a new file with the same name will be created
