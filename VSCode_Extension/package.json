@@ -16,7 +16,7 @@
   ],
   "activationEvents": [
     "onCommand:extension.startMTA",
-    "onCommand:extension.addMTATDBundle"
+    "onCommand:extension.addMTATDResource"
   ],
   "main": "./out/src/extension",
   "icon": "icon.png",
@@ -27,8 +27,8 @@
         "title": "MTA:TD: Start MTA Debug Server"
       },
       {
-        "command": "extension.addMTATDBundle",
-        "title": "MTA:TD: Add bundle to current project"
+        "command": "extension.addMTATDResource",
+        "title": "MTA:TD: Add debug resource to current project"
       }
     ],
     "debuggers": [

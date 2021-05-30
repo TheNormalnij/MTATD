@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 
 import { exec, ChildProcess } from 'child_process';
-import { normalize } from 'path';
+import { normalize, join as path_join, basename } from 'path';
 import { platform } from 'os';
 import * as ps from 'ps-node';
 import * as fs from 'fs';
@@ -82,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('extension.addMTATDBundle', () => {
+    context.subscriptions.push(vscode.commands.registerCommand('extension.addMTATDResource', () => {
         // Get extension path (the MTATD bundle lays there)
         const extensionPath = vscode.extensions.getExtension('jusonex.mtatd').extensionPath;
         const workspacePath = vscode.workspace.rootPath;
@@ -92,9 +92,48 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
+        copyFolderRecursiveSync( path_join( extensionPath, "/debugger_mta_resource/" ) , path_join( workspacePath, "/[debugger]/debugger/" ) );
+
         // Copy file
-        fs.createReadStream(`${extensionPath}/MTATD.bundle.lua`).pipe(fs.createWriteStream(`${workspacePath}/MTATD.bundle.lua`));
+        //fs.createReadStream(`${extensionPath}/MTATD.bundle.lua`).pipe(fs.createWriteStream(`${workspacePath}/MTATD.bundle.lua`));
     }));
+}
+
+function copyFileSync( source, target ) {
+
+    var targetFile = target;
+
+    // If target is a directory, a new file with the same name will be created
+    if ( fs.existsSync( target ) ) {
+        if ( fs.lstatSync( target ).isDirectory() ) {
+            targetFile = path_join( target, basename( source ) );
+        }
+    }
+
+    fs.writeFileSync(targetFile, fs.readFileSync(source));
+}
+
+function copyFolderRecursiveSync( source, target ) {
+    var files = [];
+
+    // Check if folder needs to be created or integrated
+    var targetFolder = target;
+    if ( !fs.existsSync( targetFolder ) ) {
+        fs.mkdirSync( targetFolder );
+    }
+
+    // Copy
+    if ( fs.lstatSync( source ).isDirectory() ) {
+        files = fs.readdirSync( source );
+        files.forEach( function ( file ) {
+            var curSource = path_join( source, file );
+            if ( fs.lstatSync( curSource ).isDirectory() ) {
+                copyFolderRecursiveSync( curSource,  path_join( targetFolder, basename( source ) ) );
+            } else {
+                copyFileSync( curSource, targetFolder );
+            }
+        } );
+    }
 }
 
 // this method is called when your extension is deactivated
