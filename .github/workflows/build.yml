@@ -1,0 +1,49 @@
+
+name: Build VS Code extension
+
+on:
+  push:
+    branches: [ ci_test ]
+  pull_request:
+    branches: [ ci_test ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Install Dependencies
+        run: |
+          sudo apt install golang-go npm
+          go get github.com/gorilla/mux
+          sudo npm install -g vsce
+
+      - name: Build Linux debug server
+        run: go build -o VSCode_Extension/DebugServerLinux TestServer/*.go
+
+      - name: Build Linux debug server
+        run: GOOS="windows" go build -o VSCode_Extension/DebugServer.exe TestServer/*.go
+
+      - name: Copy MTA Resource
+        run: |
+          mkdir VSCode_Extension/debugger_mta_resource
+          cp -r LuaLibrary/debugger/* VSCode_Extension/debugger_mta_resource
+
+      - name: Load Node modules
+        run: |
+          cd VSCode_Extension
+          npm install
+
+      - name: Build VS Code extension
+        run: |
+          cd VSCode_Extension
+          vsce package -o mtatd.vsix
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: Save build artifact
+          path: VSCode_Extension/mtatd.vsix
