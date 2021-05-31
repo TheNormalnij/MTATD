@@ -3,9 +3,9 @@ name: Build VS Code extension
 
 on:
   push:
-    branches: [ ci_test ]
+    branches: [ master ]
   pull_request:
-    branches: [ ci_test ]
+    branches: [ master ]
 
   workflow_dispatch:
 
@@ -25,7 +25,7 @@ jobs:
       - name: Build Linux debug server
         run: go build -o VSCode_Extension/DebugServerLinux TestServer/*.go
 
-      - name: Build Linux debug server
+      - name: Build Windows debug server
         run: GOOS="windows" go build -o VSCode_Extension/DebugServer.exe TestServer/*.go
 
       - name: Copy MTA Resource
