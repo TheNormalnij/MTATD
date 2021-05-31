@@ -45,5 +45,5 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: Save build artifact
+          name: VSCode Extension
           path: VSCode_Extension/mtatd.vsix
