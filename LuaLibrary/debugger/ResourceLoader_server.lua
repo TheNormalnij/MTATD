@@ -8,12 +8,20 @@ addEventHandler( "requestScriptDownload", root, function( fileName )
 end )
 
 function ResourceLoader:load()
-    local isStarted = startResource( self._resource, false, true, true, true, false, true, true, false, true )
+    local isStarted = startResource( self._resource, false, false, true, true, false, true, true, false, true )
     if isStarted then
-        local serverScrips, clientScripts = self:getScripts()
+        local serverScrips, clientScripts, includeResources = self:parseTargetResourceMeta()
         self._scripts = serverScrips
         local resourceRoot = self._resource:getRootElement()
         local resourceName = self._resource:getName()
+
+        local childResource
+        for i, resourceName in pairs( includeResources ) do
+            childResource = Resource.getFromName( resourceName )
+            if childResource then
+                self._debugger:startDebugResource( childResource )
+            end
+        end
 
         local hashes = {}
         for i, fileName in pairs( clientScripts ) do
@@ -37,7 +45,7 @@ function ResourceLoader:load()
     end
 end
 
-function ResourceLoader:getScripts()
+function ResourceLoader:parseTargetResourceMeta()
     local meta = XML.load( (":%s/meta.xml"):format( self._resource:getName() ) )
     if not meta then
         return false
@@ -45,12 +53,14 @@ function ResourceLoader:getScripts()
 
     local serverScrips = {}
     local clientScripts = {}
+    local includeResources = {}
 
     local nodes = meta:getChildren( )
-    local node, side, filePath
+    local node, nodeName, side, filePath
     for i = 1, #nodes do
         node = nodes[i]
-        if node:getName() == "script" then
+        nodeName = node:getName()
+        if nodeName == "script" then
             side = node:getAttribute( "type" )
             filePath = node:getAttribute( "src" )
             if side == "shared" then
@@ -61,11 +71,12 @@ function ResourceLoader:getScripts()
             else
                 table.insert( serverScrips, filePath )
             end
-
+        elseif nodeName == "include" then
+            table.insert( includeResources, node:getAttribute( "resource" ) )
         end
     end
 
     meta:unload()
 
-    return serverScrips, clientScripts
+    return serverScrips, clientScripts, includeResources
 end
