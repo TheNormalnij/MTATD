@@ -41,7 +41,7 @@ function MTADebug:_getResourceBasePath( resource )
     return (organizationalPath ~= "" and organizationalPath.."/" or "")..getResourceName(resource).."/"
 end
 
-function MTADebug:_startDebugResource( resource )
+function MTADebug:startDebugResource( resource )
 	if not self._started_resources[resource] then
 		 local handler = ResourceLoader:new( resource, self )
 		 if handler:load() then
@@ -56,7 +56,7 @@ end
 function MTADebug.Commands:start_debug( resourceName )
 	local resource = Resource.getFromName( resourceName )
 	if resource then
-		local success = self:_startDebugResource( resource )
+		local success = self:startDebugResource( resource )
 		return success and "Resource started in debug mode" or "Can't start resource in debug mode"
 	end
 	return "Can not find resource " .. tostring( resourceName )

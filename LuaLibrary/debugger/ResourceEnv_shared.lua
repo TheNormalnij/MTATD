@@ -18,7 +18,8 @@ ResourceEnv = Class()
 function ResourceEnv:constructor(resource, debugger)
 	self._debugger = debugger
 	self._resource = resource
-	self._resourceName = resource:getName()
+	local resourceName = resource:getName()
+	self._resourceName = resourceName
 	local resourceRoot = resource:getRootElement()
 	self._resourceRoot = resourceRoot
 	local eventHandlers = {}
@@ -43,8 +44,15 @@ function ResourceEnv:constructor(resource, debugger)
 	end
 
 	env.loadstring = function( content, blockName )
+		if type( content ) ~= "string" then
+			error( "Bad argument 1 for loadstring", 2 )
+		end
+		if blockName ~= nil and type( blockName ) ~= "string" then
+			error( "Bad argument 2 for loadstring", 2 )
+		end
 		local resource = self._resource
-		local resourceName, filePath = filePath:match( ":(.-)/(.+)" )
+		blockName = blockName or content:sub(1, 60)
+		local resourceName, filePath = blockName:match( ":(.-)/(.+)" )
 		if resourceName then
 			resource = Resource.getFromName( resourceName ) or resource
 		end
@@ -120,6 +128,38 @@ function ResourceEnv:constructor(resource, debugger)
 	else
 
 	end
+
+	local function transformFilePath( path )
+		if path:sub(1, 1) ~= ":" then
+			path = (":%s/%s"):format( resourceName, path )
+		end
+		return path
+	end
+
+	local function _fileOpen( path, readOnly )
+		local file = fileOpen( transformFilePath( path ), readOnly )
+		if file then
+			table.insert( files, file )
+			return file
+		else
+			error( "Can't open file " .. tostring(path), 2 )
+		end
+	end
+
+	env.fileOpen = _fileOpen
+	env.File.open = _fileOpen
+
+	local function _fileClose( file )
+		for i, f in pairs( files ) do
+			if f == file then
+				table.remove( files, i )
+			end
+		end
+		return fileClose( file )
+	end 
+
+	env.fileClose = _fileClose
+	env.File.close = _fileClose
 
 	local backup = {}
 	local function tempValues( values )
@@ -270,6 +310,10 @@ end
 function ResourceEnv:destructor()
 	self._resourceRoot:destroy()
 
+	for i, file in pairs( files ) do
+		fileClose( file )
+	end
+
 	for cmd in pairs( self._commands ) do
 		removeCommandHandler( cmd )
 	end
@@ -295,7 +339,11 @@ end
 
 function ResourceEnv:loadFile( filePath )
 	local fullPath = (":%s/%s"):format(self._resourceName, filePath )
-	local file = File.open( fullPath )
+	local file = File.open( fullPath, true )
+	if not file then
+		outputDebugString( ("Can not load %s. Remove 'mysql' keyword in script and do not start this resource before debugger" ):format( fullPath ), 3 )
+		return
+	end
 	local content = file:read( file:getSize() )
 	file:close()
 
