@@ -16,4 +16,6 @@ function ResourceLoader:loadResourceEnv()
     for i = 1, #self._scripts do
         self._envController:loadFile( self._scripts[i] )
     end
+
+    self._envController:allowExports( self._exports )    
 end

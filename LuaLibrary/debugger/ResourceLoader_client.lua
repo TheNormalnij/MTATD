@@ -9,6 +9,7 @@ function ResourceLoader:downloadAndStartResource( scripts, hashes )
 	self._scripts = scripts
 
 	local resourceRoot = self._resource:getRootElement()
+	self._exports = resourceRoot:getData( "__client_exports" )
 
 	local needDownload = {}
 

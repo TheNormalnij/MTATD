@@ -10,13 +10,15 @@ end )
 function ResourceLoader:load()
     local isStarted = startResource( self._resource, false, false, true, true, false, true, true, false, true )
     if isStarted then
-        local serverScrips, clientScripts, includeResources = self:parseTargetResourceMeta()
-        self._scripts = serverScrips
+        self:parseTargetResourceMeta()
+
+        self._scripts = self._serverScripts
+        self._exports = self._serverExports
         local resourceRoot = self._resource:getRootElement()
         local resourceName = self._resource:getName()
 
         local childResource
-        for i, resourceName in pairs( includeResources ) do
+        for i, resourceName in pairs( self._includeResources ) do
             childResource = Resource.getFromName( resourceName )
             if childResource then
                 self._debugger:startDebugResource( childResource )
@@ -24,7 +26,7 @@ function ResourceLoader:load()
         end
 
         local hashes = {}
-        for i, fileName in pairs( clientScripts ) do
+        for i, fileName in pairs( self._clientScripts ) do
             local path = (":%s/%s"):format( resourceName, fileName ) 
             local file = File.open( path )
             local content = file:read( file:getSize() )
@@ -33,8 +35,9 @@ function ResourceLoader:load()
             hashes[i] = hash( "md5", content )
         end
 
-        resourceRoot:setData( "__client_scripts", clientScripts )
+        resourceRoot:setData( "__client_scripts", self._clientScripts )
         resourceRoot:setData( "__client_scripts_hashes", hashes )
+        resourceRoot:setData( "__client_exports", self._clientExports )
         resourceRoot:setData( "__resource_name", resourceName )
         triggerClientEvent( "requestStartResourceDebug", resourceRoot, resourceName )
 
@@ -51,12 +54,14 @@ function ResourceLoader:parseTargetResourceMeta()
         return false
     end
 
-    local serverScrips = {}
-    local clientScripts = {}
-    local includeResources = {}
+    self._serverScripts = {}
+    self._clientScripts = {}
+    self._includeResources = {}
+    self._clientExports = {}
+    self._serverExports = {}
 
     local nodes = meta:getChildren( )
-    local node, nodeName, side, filePath
+    local node, nodeName, side, filePath, functionName
     for i = 1, #nodes do
         node = nodes[i]
         nodeName = node:getName()
@@ -64,19 +69,30 @@ function ResourceLoader:parseTargetResourceMeta()
             side = node:getAttribute( "type" )
             filePath = node:getAttribute( "src" )
             if side == "shared" then
-                table.insert( serverScrips, filePath )
-                table.insert( clientScripts, filePath )
+                table.insert( self._serverScripts, filePath )
+                table.insert( self._clientScripts, filePath )
             elseif side == "client" then
-                table.insert( clientScripts, filePath )
+                table.insert( self._clientScripts, filePath )
             else
-                table.insert( serverScrips, filePath )
+                table.insert( self._serverScripts, filePath )
             end
         elseif nodeName == "include" then
-            table.insert( includeResources, node:getAttribute( "resource" ) )
+            table.insert( self._includeResources, node:getAttribute( "resource" ) )
+        elseif nodeName == "export" then
+            side = node:getAttribute( "type" )
+            functionName = node:getAttribute( "function" )
+            if side == "shared" then
+                table.insert( self._serverExports, functionName )
+                table.insert( self._clientExports, functionName )
+            elseif side == "client" then
+                table.insert( self._clientExports, functionName )
+            else
+                table.insert( self._serverExports, functionName )
+            end
         end
     end
 
     meta:unload()
 
-    return serverScrips, clientScripts, includeResources
+    return true
 end

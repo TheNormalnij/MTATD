@@ -11,6 +11,8 @@ copy = function(t)
 	end
 end
 
+local resourceExports = {}
+
 CurrentEnv = _G
 
 ResourceEnv = Class()
@@ -43,6 +45,55 @@ function ResourceEnv:constructor(resource, debugger)
 		env[className] = setmetatable( env[className], getmetatable( _G[className] ) )
 	end
 
+	env.call = function( targetResource, funcName, ... )
+		if resourceExports[targetResource] then
+			return resourceExports[targetResource][funcName]( ... )
+		else
+			return call( targetResource, funcName, ... )
+		end
+	end
+
+	do
+		local type = type
+		local setmetatable = setmetatable
+		local getResourceRootElement = getResourceRootElement
+		local call = env.call
+		local getResourceFromName = getResourceFromName
+		local tostring = tostring
+		local outputDebugString = outputDebugString
+
+		local rescallMT = {}
+		function rescallMT:__index(k)
+		    if type(k) ~= 'string' then k = tostring(k) end
+		        self[k] = function(resExportTable, ...)
+		        if type(self.res) == 'userdata' and getResourceRootElement(self.res) then
+		                return call(self.res, k, ...)
+		        else
+		                return nil
+		        end
+		    end
+		    return self[k]
+		end
+
+		local exportsMT = {}
+		function exportsMT:__index(k)
+		    if type(k) == 'userdata' and getResourceRootElement(k) then
+		        return setmetatable({ res = k }, rescallMT)
+		    elseif type(k) ~= 'string' then
+		        k = tostring(k)
+		    end
+
+		    local res = getResourceFromName(k)
+		    if res and getResourceRootElement(res) then
+		        return setmetatable({ res = res }, rescallMT)
+		    else
+		        outputDebugString('exports: Call to non-running server resource (' .. k .. ')', 1)
+		        return setmetatable({}, rescallMT)
+		    end
+		end
+		env.exports = setmetatable({}, exportsMT)
+	end
+
 	env.loadstring = function( content, blockName )
 		if type( content ) ~= "string" then
 			error( "Bad argument 1 for loadstring", 2 )
@@ -56,7 +107,11 @@ function ResourceEnv:constructor(resource, debugger)
 		if resourceName then
 			resource = Resource.getFromName( resourceName ) or resource
 		end
-		return loadstring( content, self._debugger:genDebugLink( self._resource, filePath or blockName ) )
+		local fun, errorMessage = loadstring( content, self._debugger:genDebugLink( self._resource, filePath or blockName ) )
+		if fun then
+			setfenv( fun, env )
+		end
+		return fun, errorMessage
 	end
 
 
@@ -335,6 +390,8 @@ function ResourceEnv:destructor()
 			timer:destroy()
 		end
 	end
+
+	resourceExports[self._resource] = nil
 end
 
 function ResourceEnv:loadFile( filePath )
@@ -358,6 +415,25 @@ function ResourceEnv:loadFile( filePath )
 		local file, line = errorMsg:match( "^(.+):(%d+):.+" )
 		self._debugger:outputDebugString("Syntax error:" .. errorMsg, 1, file, tonumber( line ) )
 	end
+end
+
+function ResourceEnv:allowExports( nameList )
+	local exported = {}
+	for i, funName in pairs( nameList ) do
+		exported[funName] = function( ... )
+			local env = self._env
+			local prevResource, preSourceResourceRoot = env.sourceResource, env.sourceResourceRoot
+			env.sourceResource = self._resource
+			env.sourceResourceRoot = self._resourceRoot
+			local result = copy( { env[funName]( ... ) } )
+			env.sourceResource = prevResource
+			env.sourceResourceRoot = preSourceResourceRoot
+
+			return unpack( result )
+		end
+	end
+
+	resourceExports[self._resource] = exported
 end
 
 function ResourceEnv:getEnvTable()
