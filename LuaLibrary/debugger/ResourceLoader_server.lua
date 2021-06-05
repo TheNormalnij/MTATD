@@ -8,33 +8,44 @@ addEventHandler( "requestScriptDownload", root, function( fileName )
 end )
 
 function ResourceLoader:load()
-    local isStarted = startResource( self._resource, false, false, true, true, false, true, true, false, true )
-    if isStarted then
-        self:parseTargetResourceMeta()
 
-        self._scripts = self._serverScripts
-        self._exports = self._serverExports
+    local function preStartHandler( resource )
+        outputDebugString( "Resource will be loaded in debug mode...", 3 )
+        cancelEvent()
+    end
+    addEventHandler( "onResourcePreStart", root, preStartHandler )
+
+    -- Unpack resource
+    startResource( self._resource, false, false, true, true, false, true, true, false, true )
+    removeEventHandler( "onResourcePreStart", root, preStartHandler )
+
+    self:parseTargetResourceMeta()
+
+    self._scripts = self._serverScripts
+    self._exports = self._serverExports
+    local resourceName = self._resource:getName()
+
+    local childResource
+    for i, resourceName in pairs( self._includeResources ) do
+        childResource = Resource.getFromName( resourceName )
+        if childResource then
+            self._debugger:startDebugResource( childResource )
+        end
+    end
+
+    local hashes = {}
+    for i, fileName in pairs( self._clientScripts ) do
+        local path = (":%s/%s"):format( resourceName, fileName ) 
+        local file = File.open( path )
+        local content = file:read( file:getSize() )
+        file:close()
+        ClientScripts[path] = content
+        hashes[i] = hash( "md5", content )
+    end
+
+    -- Really Start
+    local function resourceStartHandler( resource )
         local resourceRoot = self._resource:getRootElement()
-        local resourceName = self._resource:getName()
-
-        local childResource
-        for i, resourceName in pairs( self._includeResources ) do
-            childResource = Resource.getFromName( resourceName )
-            if childResource then
-                self._debugger:startDebugResource( childResource )
-            end
-        end
-
-        local hashes = {}
-        for i, fileName in pairs( self._clientScripts ) do
-            local path = (":%s/%s"):format( resourceName, fileName ) 
-            local file = File.open( path )
-            local content = file:read( file:getSize() )
-            file:close()
-            ClientScripts[path] = content
-            hashes[i] = hash( "md5", content )
-        end
-
         resourceRoot:setData( "__client_scripts", self._clientScripts )
         resourceRoot:setData( "__client_scripts_hashes", hashes )
         resourceRoot:setData( "__client_exports", self._clientExports )
@@ -42,10 +53,14 @@ function ResourceLoader:load()
         triggerClientEvent( "requestStartResourceDebug", resourceRoot, resourceName )
 
         self:loadResourceEnv()
-        return true
-    else
-        return false
     end
+    addEventHandler( "onResourceStart", root, resourceStartHandler, true, "high+999999999" )
+
+    local isStarted = startResource( self._resource, false, false, true, true, false, true, true, false, true )
+
+    removeEventHandler( "onResourceStart", root, resourceStartHandler )
+
+    return isStarted
 end
 
 function ResourceLoader:parseTargetResourceMeta()

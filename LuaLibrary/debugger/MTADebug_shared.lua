@@ -142,13 +142,23 @@ function MTADebug:runDebugLoop(stackLevel, message)
     for line in debug.traceback("trace", stackLevel):gmatch( "[^\r\n]+" ) do
         if skip == 0 then
             path, lineNumber, dest = line:match( "\t(.-):(%d*):? in (.+)" )
-            link = path:match( 'string "&(%d+)"' )
+            if path then
+                link = path:match( 'string "&(%d+)"' )
+            else
+                path = "?"
+            end
 
             if link then
                 path = self._debugLinks[ tonumber( link ) ]
             end
-            if dest:find("^function") then
-                dest = dest:sub(10)
+            if dest then
+                if dest:find("^function") then
+                    dest = dest:sub(10)
+                else
+                    dest = self:fixPathInString( dest )
+                end
+            else
+                dest = "?"
             end
             if lineNumber then
                 line = ("%s:%s: in %s"):format(path, lineNumber, dest)

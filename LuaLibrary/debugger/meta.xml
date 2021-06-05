@@ -25,4 +25,6 @@
 
 		<right name="general.ModifyOtherObjects" access="true"/>
 	</aclrequest>
+
+	<download_priority_group>99999999</download_priority_group>
 </meta>
