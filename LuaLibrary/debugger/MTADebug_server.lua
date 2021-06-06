@@ -8,6 +8,8 @@ function MTADebug:_platformInit()
 		self._resourcePathes[resource] = self:_getResourceBasePath( resource )
 	end
 
+	resourceRoot:setData( "__base_path", self._resourcePathes[resource] )
+
     addEventHandler( "onDebugMessage", root, function(message, level, file, line)
     	message = self:fixPathInString(message)
         self:sendMessage(("[Server] %s"):format(message), MessageLevelToType[level], file, line)

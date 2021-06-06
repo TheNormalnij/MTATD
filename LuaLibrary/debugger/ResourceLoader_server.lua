@@ -1,12 +1,4 @@
 
-local ClientScripts = {}
-
-addEvent("requestScriptDownload", true)
-
-addEventHandler( "requestScriptDownload", root, function( fileName )
-    triggerLatentClientEvent( client, "onClientScriptGet", source, fileName, ClientScripts[fileName] )
-end )
-
 function ResourceLoader:load()
 
     local function preStartHandler( resource )
@@ -28,29 +20,27 @@ function ResourceLoader:load()
     local childResource
     for i, resourceName in pairs( self._includeResources ) do
         childResource = Resource.getFromName( resourceName )
-        if childResource then
+        if childResource and childResource:getState() ~= "running" then
             self._debugger:startDebugResource( childResource )
         end
     end
 
+    local clientScripts = {}
     local hashes = {}
     for i, fileName in pairs( self._clientScripts ) do
         local path = (":%s/%s"):format( resourceName, fileName ) 
         local file = File.open( path )
         local content = file:read( file:getSize() )
         file:close()
-        ClientScripts[path] = content
-        hashes[i] = hash( "md5", content )
+        table.insert( clientScripts, { fileName, content })
     end
 
     -- Really Start
     local function resourceStartHandler( resource )
         local resourceRoot = self._resource:getRootElement()
-        resourceRoot:setData( "__client_scripts", self._clientScripts )
-        resourceRoot:setData( "__client_scripts_hashes", hashes )
+        resourceRoot:setData( "__client_scripts", clientScripts )
         resourceRoot:setData( "__client_exports", self._clientExports )
-        resourceRoot:setData( "__resource_name", resourceName )
-        triggerClientEvent( "requestStartResourceDebug", resourceRoot, resourceName )
+        resourceRoot:setData( "__debug", true )
 
         self:loadResourceEnv()
     end
