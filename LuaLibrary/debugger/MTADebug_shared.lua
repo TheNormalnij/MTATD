@@ -505,7 +505,7 @@ end
 -- Run function in debug mode
 -----------------------------------------------------------
 function MTADebug:debugRun(fun)
-    xpcall(fun, function(errorMessage)
+    return xpcall(fun, function(errorMessage)
         errorMessage = self:fixPathInString( errorMessage )
         local file, line = errorMessage:match( "^(.+):(%d+):.+" )
         self:outputDebugString( errorMessage, 1, file, tonumber( line ) )

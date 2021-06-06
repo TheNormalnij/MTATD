@@ -45,8 +45,45 @@ function ResourceEnv:constructor(resource, debugger)
 	env.resourceRoot = resourceRoot
 	env.debug.debugger = debugger
 
+	-- 
+	local currentEnvClasses = {}
+
 	for _, className in pairs( UsedMetateble ) do
-		env[className] = setmetatable( env[className], getmetatable( _G[className] ) )
+		local meta = getmetatable( _G[className] )
+		setmetatable( env[className], meta )
+		currentEnvClasses[ _G[className] ] = env[className]
+	end
+
+	local function fixClassObject( obj, classTable )
+		local prevmeta = getmetatable( obj )
+		local prev_index = prevmeta.__index
+		debug.setmetatable(obj, {
+			__class = classTable,
+			__index = function( self, key )
+				return classTable[key] or prev_index( obj, key )
+			end,
+			__newindex = prevmeta.__newindex,
+			__set = prevmeta.__set,
+			__get = prevmeta.__get,
+		})
+	end
+
+	local function fixMeta( val )
+		local meta = getmetatable( val )
+		if meta and meta.__class and currentEnvClasses[ meta.__class ] then
+			fixClassObject( val, currentEnvClasses[ meta.__class ] )
+		end
+	end
+
+	local function unpackFixed( vals )
+		local meta
+		for i = 1, #vals do
+			meta = getmetatable( vals[i] )
+			if meta and meta.__class and currentEnvClasses[ meta.__class ] then
+				fixClassObject( vals[i], currentEnvClasses[ meta.__class ] )
+			end
+		end
+		return unpack( vals )
 	end
 
 	-- Exports
@@ -100,6 +137,14 @@ function ResourceEnv:constructor(resource, debugger)
 		env.exports = setmetatable({}, exportsMT)
 	end
 
+	-- pcall
+
+	env.pcall = function( __pcallFunction, ... )
+		local arg = { ... }
+		local result = { self._debugger:debugRun( function() return __pcallFunction( unpackFixed( arg ) ) end ) }
+		return unpackFixed( result )
+	end
+
 	-- Loadstring
 
 	env.loadstring = function( content, blockName )
@@ -120,20 +165,6 @@ function ResourceEnv:constructor(resource, debugger)
 			setfenv( fun, env )
 		end
 		return fun, errorMessage
-	end
-
-	local function fixClassObject( obj, classTable )
-		local prevmeta = getmetatable( obj )
-		local prev_index = prevmeta.__index
-		debug.setmetatable(obj, {
-			__class = classTable,
-			__index = function( self, key )
-				return classTable[key] or prev_index( obj, key )
-			end,
-			__newindex = prevmeta.__newindex,
-			__set = prevmeta.__set,
-			__get = prevmeta.__get,
-		})
 	end
 
 	local dynElementRoot = resource:getDynamicElementRoot()
@@ -197,8 +228,24 @@ function ResourceEnv:constructor(resource, debugger)
 	addCreateElementFunction( env.Water, "create", env.Water )
 
 	if triggerClientEvent then
-		addCreateElementFunction( env, "dbConnect", env.Connection )
-		addCreateElementFunction( env.Connection, "create", env.Connection )
+		self._databases = {}
+
+		local function addCreateDatabaseFunction( owner, functionName, classTable )
+			local _fun = owner[functionName]
+			owner[functionName] = function( ... )
+				local result = _fun( ... )
+				if result then
+					fixClassObject( result, classTable )
+					self._databases[result] = true
+					return result
+				else
+					error("Can not create object", 2)
+				end
+			end
+		end
+
+		addCreateDatabaseFunction( env, "dbConnect", env.Connection )
+		addCreateDatabaseFunction( env.Connection, "create", env.Connection )
 
 		addCreateElementFunction( env, "createTeam", env.Team )
 		addCreateElementFunction( env.Team, "create", env.Team )
@@ -213,9 +260,11 @@ function ResourceEnv:constructor(resource, debugger)
 		return path
 	end
 
+	local FiliClassTable = env.File
 	local function _fileOpen( path, readOnly )
 		local file = fileOpen( transformFilePath( path ), readOnly )
 		if file then
+			fixClassObject( file, FiliClassTable )
 			table.insert( files, file )
 			return file
 		else
@@ -241,6 +290,7 @@ function ResourceEnv:constructor(resource, debugger)
 	local backup = {}
 	local function tempValues( values )
 		for _, key in pairs( values ) do
+			fixMeta( _G[key] )
 			backup[key] = env[key]
 			env[key] = _G[key]
 		end
@@ -259,7 +309,7 @@ function ResourceEnv:constructor(resource, debugger)
 		addCommandHandler( cmd, function( ... )
 			CurrentEnv = env
 			local arg = { ... }
-			self._debugger:debugRun( function() __timerFunction( unpack( arg ) ) end ) 
+			self._debugger:debugRun( function() __timerFunction( unpackFixed( arg ) ) end ) 
 			CurrentEnv = _G
 		end, ... )
 	end
@@ -270,7 +320,7 @@ function ResourceEnv:constructor(resource, debugger)
 		eventHandlers[source] = nil
 	end 
 
-	addEventHandler( triggerClientEvent and "onElementDestroy" or "onClientElementDestroy", root, self._destroyElementHandler )
+	addEventHandler( triggerClientEvent and "onElementDestroy" or "onClientElementDestroy", resourceRoot, self._destroyElementHandler )
 
 	env.addEventHandler = function( eventName, element, __eventFunction, ... )
 		if type( __eventFunction ) == 'function' then
@@ -287,13 +337,17 @@ function ResourceEnv:constructor(resource, debugger)
 
 			local fun
 			fun = events[ __eventFunction ] or function( ... )
-				tempValues{
+				local backupKeys = {
 					"source",
 					"this",
 					"sourceResource",
 					"sourceResourceRoot",
 					"eventName",
 				}
+				if client then
+					table.insert( backupKeys, "client" )
+				end
+				tempValues( backupKeys )
 				local arg = { ... }
 
 				if not self._resource:getState() == 'running' then
@@ -302,7 +356,7 @@ function ResourceEnv:constructor(resource, debugger)
 				end
 
 				CurrentEnv = env
-				self._debugger:debugRun( function() __eventFunction( unpack( arg ) ) end ) 
+				self._debugger:debugRun( function() __eventFunction( unpackFixed( arg ) ) end ) 
 				CurrentEnv = _G
 				restoreBackup()
 			end;
@@ -344,8 +398,6 @@ function ResourceEnv:constructor(resource, debugger)
 
 	-- Timers
 
-	env.Timer = setmetatable( env.Timer, getmetatable( Timer ) )
-
 	env.Timer.create = function( __timerFunction, time, count, ... )
 		if type( __timerFunction ) == 'function' then
 			local arg = { ... }
@@ -356,7 +408,7 @@ function ResourceEnv:constructor(resource, debugger)
 					"sourceTimer",
 				}
 				CurrentEnv = env
-				self._debugger:debugRun( function() __timerFunction( unpack( arg ) ) end ) 
+				self._debugger:debugRun( function() __timerFunction( unpackFixed( arg ) ) end ) 
 				CurrentEnv = _G
 				restoreBackup()
 
@@ -375,14 +427,39 @@ function ResourceEnv:constructor(resource, debugger)
 		timer:destroy()
 	end;
 
-	local function hook()
-		--debug.sethook(function(...) debugger:_hookFunction(...) end, "crl")
-		--debug.sethook(function(...) iprint( ... ) end, "crl")
-	end
 
-	setfenv(hook, env)
-	hook()
-	-- End
+	if triggerClientEvent then
+		-- Query functions
+		
+		env.dbQuery = function( __queryCallback, ... )
+			if type( __queryCallback ) == "function" then
+				local fun = function( ... )
+					local arg = { ... }
+					CurrentEnv = env
+					self._debugger:debugRun( function() __queryCallback( unpackFixed( arg ) ) end ) 
+					CurrentEnv = _G
+				end
+				dbQuery( fun, ... )
+			else
+				return dbQuery( __queryCallback, ... )
+			end
+		end
+
+		env.Connection.query = function( db, __queryCallback, ... )
+			if type( __queryCallback ) == "function" then
+				local fun = function( ... )
+					local arg = { ... }
+					CurrentEnv = env
+					self._debugger:debugRun( function() __queryCallback( unpackFixed( arg ) ) end ) 
+					CurrentEnv = _G
+				end
+				Connection.query( db, fun, ... )
+			else
+				return Connection.query( db, __queryCallback, ... )
+			end
+		end
+
+	end
 
 	self._env = env
 end
@@ -408,11 +485,17 @@ function ResourceEnv:destructor()
 		end
 	end
 
-	removeEventHandler( triggerClientEvent and "onElementDestroy" or "onClientElementDestroy", root, self._destroyElementHandler )
-
 	for timer in pairs( self._timers ) do
 		if isTimer( timer ) then
 			timer:destroy()
+		end
+	end
+
+	if triggerClientEvent then
+		for db in pairs( self._databases ) do
+			if isElement( db ) then
+				db:destroy()
+			end
 		end
 	end
 
@@ -420,7 +503,7 @@ function ResourceEnv:destructor()
 end
 
 function ResourceEnv:loadFile( filePath )
-	local fullPath = (":%s/%s"):format(self._resourceName, filePath )
+	local fullPath = (":%s/%s"):format( self._resourceName, filePath )
 	local file = File.open( fullPath, true )
 	if not file then
 		outputDebugString( ("Can not load %s. Remove 'mysql' keyword in script and do not start this resource before debugger" ):format( fullPath ), 3 )
@@ -477,6 +560,9 @@ function ResourceEnv:allowExports( nameList )
 	for i, funName in pairs( nameList ) do
 		exported[funName] = function( ... )
 			local env = self._env
+			if not env[funName] then
+				error( "Attemt to call not exported function " .. funName, 2 )
+			end
 			local prevResource, preSourceResourceRoot = env.sourceResource, env.sourceResourceRoot
 			env.sourceResource = self._resource
 			env.sourceResourceRoot = self._resourceRoot
