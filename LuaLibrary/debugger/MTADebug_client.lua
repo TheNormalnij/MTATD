@@ -5,6 +5,13 @@ function MTADebug:_platformInit()
     -- Add messages output
     addEventHandler( "onClientDebugMessage", root, function(message, level, file, line)
         message = self:fixPathInString(message)
+        local resourceName, pathInResource = file:match( "^(.-)\\(.+)" )
+        if resourceName then
+            resource = getResourceFromName( resourceName )
+            if resource then
+                file = ("%s/%s"):format( self._resourcePathes[resource], pathInResource )
+            end
+        end
         self:sendMessage(("[Client] %s"):format(message), MessageLevelToType[level], file, line)
     end )
 
