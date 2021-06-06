@@ -45,7 +45,8 @@ function ResourceEnv:constructor(resource, debugger)
 	env.resourceRoot = resourceRoot
 	env.debug.debugger = debugger
 
-	-- 
+	-- Fix metatables
+
 	local currentEnvClasses = {}
 
 	for _, className in pairs( UsedMetateble ) do
@@ -74,8 +75,22 @@ function ResourceEnv:constructor(resource, debugger)
 			fixClassObject( val, currentEnvClasses[ meta.__class ] )
 		end
 	end
+	self._fixEnvObjectMeta = fixMeta
 
-	local function unpackFixed( vals )
+	local function fixMetaInTableDeep( t, cheched )
+		local cheched = cheched or {}
+		cheched[t] = true
+		fixMeta( t )
+		if type( t ) == "table" and not cheched[t] then
+			for key, value in pairs( t ) do
+				fixMetaInTableDeep( key, cheched )
+				fixMetaInTableDeep( value, cheched )
+			end
+		end
+	end
+	self._fixMetaInTableDeep = fixMetaInTableDeep
+
+	local function fixMetaInTable( vals )
 		local meta
 		for i = 1, #vals do
 			meta = getmetatable( vals[i] )
@@ -83,8 +98,14 @@ function ResourceEnv:constructor(resource, debugger)
 				fixClassObject( vals[i], currentEnvClasses[ meta.__class ] )
 			end
 		end
+	end
+
+	local function unpackFixed( vals )
+		fixMetaInTable( vals )
 		return unpack( vals )
 	end
+
+
 
 	-- Exports
 
@@ -286,6 +307,105 @@ function ResourceEnv:constructor(resource, debugger)
 
 	env.fileClose = _fileClose
 	env.File.close = _fileClose
+
+	-- Fix output for some functions
+
+	local function fixFunctionTableOutput( owner, name )
+		local fun = owner[name]
+		owner[name] = function( ... )
+			local output = fun( ... )
+			if output then
+				fixMetaInTable( output )
+				return output
+			end
+			error( "Failed to call " .. name, 2 )
+		end
+
+	end
+
+	local function fixFucntionOutput( owner, name )
+		local fun = owner[name]
+		owner[name] = function( ... )
+			local output = fun( ... )
+			fixClassObject( object )
+			return output
+		end
+	end
+
+	fixFunctionTableOutput( env, "getElementsByType" )
+	fixFunctionTableOutput( env.Element, "getByType" )
+
+	env.getElementData = function( ... )
+		local result = getElementData( ... )
+		fixMetaInTableDeep( result )
+		return result
+	end
+
+	env.Element.getData = env.getElementData
+
+	fixFunctionTableOutput( env, "getElementsByType" )
+	fixFunctionTableOutput( env.Element, "getByType" )
+
+	fixFucntionOutput( env, "getRandomPlayer" )
+	fixFucntionOutput( env.Player, "getRandom" )
+
+	fixFucntionOutput( env, "getPlayerAccount" )
+	fixFucntionOutput( env.Player, "getAccount" )
+
+	fixFucntionOutput( env, "getPlayerFromName" )
+	fixFucntionOutput( env.Player, "getFromName" )
+
+	fixFucntionOutput( env, "getPlayerTeam" )
+	fixFucntionOutput( env.Player, "getTeam" )
+
+	fixFunctionTableOutput( env, "getAlivePlayers" )
+	fixFunctionTableOutput( env.Player, "getAllAlive" )
+
+	fixFunctionTableOutput( env, "getDeadPlayers" )
+	fixFunctionTableOutput( env.Player, "getAllDead" )
+
+	fixFucntionOutput( env, "getPedOccupiedVehicle" )
+	fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
+
+	fixFucntionOutput( env, "getPedTarget" )
+	fixFucntionOutput( env.Ped, "getTarget" )
+
+	fixFucntionOutput( env, "getPedOccupiedVehicle" )
+	fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
+
+	fixFucntionOutput( env, "getVehicleController" )
+	fixFucntionOutput( env.Vehicle, "getController" )
+
+	fixFucntionOutput( env, "getVehicleOccupant" )
+	fixFucntionOutput( env.Vehicle, "getOccupant" )
+
+	fixFucntionOutput( env, "getVehicleTowedByVehicle" )
+	fixFucntionOutput( env.Vehicle, "getTowedByVehicle" )
+
+	fixFucntionOutput( env, "getVehicleTowingVehicle" )
+	fixFucntionOutput( env.Vehicle, "getTowingVehicle" )
+
+	env.getVehicleOccupants = function( vehicle )
+		local output = getVehicleOccupants( vehicle )
+		if output then
+			for i = 0, 4 do
+				fixClassObject( output[i] )
+			end
+			return output
+		end
+		error( "Failed to call getVehicleOccupants", 2 )
+	end
+
+	env.Vehicle.getOccupants = env.getVehicleOccupants
+
+	if triggerClientEvent then
+		fixFucntionOutput( env, "getAccountPlayer" )
+		fixFucntionOutput( env.Account, "getPlayer" )
+	else
+
+	end
+
+	-- Callback functions
 
 	local backup = {}
 	local function tempValues( values )
@@ -567,6 +687,7 @@ function ResourceEnv:allowExports( nameList )
 			env.sourceResource = self._resource
 			env.sourceResourceRoot = self._resourceRoot
 			local result = copy( { env[funName]( ... ) } )
+			self._fixMetaInTableDeep( result )
 			env.sourceResource = prevResource
 			env.sourceResourceRoot = preSourceResourceRoot
 
