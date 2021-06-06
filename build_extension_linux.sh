@@ -3,7 +3,7 @@
 echo "Build Go DebugServer"
 cd TestServer
 set GOARCH=386
-go build -o ../VSCode_Extension/DebugServerLinux main.go MTADebugAPI.go MTAServer.go MTAServerAPI.go MTAUnitAPI.go
+go build -o ../VSCode_Extension/DebugServerLinux *.go
 cd ..
 
 echo "Compress binary"

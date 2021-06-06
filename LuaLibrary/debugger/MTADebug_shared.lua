@@ -53,28 +53,8 @@ function MTADebug:constructor(backend)
     -- Enable development mode
     setDevelopmentMode(true)
 
-    -- Wait a bit (so that the backend receives the breakpoints)
-    debugSleep(1000)
-
-    -- Initially fetch the breakpoints from the backend
-    -- and wait till they're received
-    self:_fetchBreakpoints(true)
-
     -- Install debug hook
     debug.sethook(function(...) self:_hookFunction(...) end, "crl")
-
-    -- Update things once per 3 seconds asynchronously
-    self._updateTimer = setTimer(
-        function()
-            -- Update breakpoint list
-            self:_fetchBreakpoints()
-
-            -- pull commands
-            self:_fetchCommands()
-        end,
-        500,
-        0
-    )
 
     -- Specific client or server init
     self:_platformInit()
@@ -89,6 +69,30 @@ function MTADebug:destructor()
     end
 end
 
+function MTADebug:onConnected()
+    outputDebugString( "Debugger connected", 3 )
+
+    -- Initially fetch the breakpoints from the backend
+    self:_fetchBreakpoints()
+
+     -- Update things once per 0.5 seconds asynchronously
+    self._updateTimer = setTimer(
+        function()
+            -- pull commands
+            self:_fetchCommands()
+        end,
+        500,
+        0
+    )
+end
+
+function MTADebug:onDisconnected()
+    outputDebugString( "Debugger disconnected", 3 )
+    if self._updateTimer and isTimer( self._updateTimer )then
+        self._updateTimer:destroy()
+        self._updateTimer = nil
+    end
+end
 -----------------------------------------------------------
 -- (Private) function that is called for each line in
 -- the script being executed (line hook)
@@ -262,12 +266,27 @@ function MTADebug:hasBreakpoint(fileName, lineNumber)
     return false
 end
 
-function MTADebug:_setBreakPoint(fileName, lineNumber)
+function MTADebug:_setBreakpoint(fileName, lineNumber)
     local breakpoints = self._breakpoints[fileName]
     if breakpoints then
         breakpoints[lineNumber] = true
     else
         self._breakpoints[fileName] = { [lineNumber] = true }
+    end
+end
+
+function MTADebug:_updateBreakpoints( breakpoints )
+    self._breakpoints = {}
+
+    -- Add new breakpoints
+    for k, breakpoint in ipairs(breakpoints or {}) do
+        -- Prepend resource base path
+        breakpoint.file = breakpoint.file
+
+        if not self._breakpoints[breakpoint.file] then
+            self._breakpoints[breakpoint.file] = {}
+        end
+        self._breakpoints[breakpoint.file][breakpoint.line] = true
     end
 end
 
@@ -283,20 +302,7 @@ function MTADebug:_fetchBreakpoints(wait)
 
     self._backend:request("get_breakpoints", {},
         function(breakpoints)
-            -- Clear old breakpoints
-            self._breakpoints = {}
-
-            -- Add new breakpoints
-            for k, breakpoint in ipairs(breakpoints or {}) do
-                -- Prepend resource base path
-                breakpoint.file = breakpoint.file
-
-                if not self._breakpoints[breakpoint.file] then
-                    self._breakpoints[breakpoint.file] = {}
-                end
-                self._breakpoints[breakpoint.file][breakpoint.line] = true
-            end
-
+            self:_updateBreakpoints( breakpoints )
             responseAvailable = true
         end
     )
@@ -453,7 +459,7 @@ function MTADebug:_runString(codeString, env)
 		return resultsString
 	end
 	
-	return true
+	return "nil"
 end
 
 -----------------------------------------------------------
@@ -540,8 +546,9 @@ end
 
 MTADebug.Commands = {}
 
-function MTADebug.Commands:set_breakpoint( file, line )
-    self:_setBreakPoint( file, tonumber( line ) )
+function MTADebug.Commands:set_breakpoints( breakpoins, count )
+    breakpoins = fromJSON( "["..breakpoins.."]" )
+    self:_updateBreakpoints( breakpoins )
 end
 
 function MTADebug.Commands:set_resume_mode( resumeMode )
@@ -619,7 +626,7 @@ function MTADebug.Commands:run_code( strCode )
                     elseif upvalueStack[key] then
                         return upvalueVariables[key]
                     else
-                        return _G[key]
+                        return CurrentEnv[key]
                     end
                 end,
 
@@ -631,7 +638,7 @@ function MTADebug.Commands:run_code( strCode )
                         upvalueVariables[key] = value
                         debug.setupvalue(debugFun, upvalueStack[key], value)
                     else
-                        _G[key] = value
+                        CurrentEnv[key] = value
                     end
                 end,
             }
@@ -641,7 +648,7 @@ function MTADebug.Commands:run_code( strCode )
     end
 
     returnString, errorString = self:_runString(strCode, env)
-    returnString = returnString or errorString
+    returnString = errorString or returnString
 
     return tostring(returnString)
 end

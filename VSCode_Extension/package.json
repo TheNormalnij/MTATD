@@ -24,7 +24,7 @@
     "commands": [
       {
         "command": "extension.startMTA",
-        "title": "MTA:TD: Start MTA Debug Server"
+        "title": "MTA:TD: Start MTA Server"
       },
       {
         "command": "extension.addMTATDResource",

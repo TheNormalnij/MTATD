@@ -24,7 +24,6 @@ type MTADebugAPI struct {
 	CmdClient CommandInterface
 
 	Info      debugeeInfo
-	MTAServer *MTAServer
 }
 
 type CommandInterface struct {
@@ -80,10 +79,9 @@ func (bp *debugBreakpoint) equals(other *debugBreakpoint) bool {
 	return bp.File == other.File && bp.Line == other.Line
 }
 
-func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
+func NewMTADebugAPI(router *mux.Router) *MTADebugAPI {
 	// Create instance
 	api := new(MTADebugAPI)
-	api.MTAServer = mtaServer
 
 	api.Breakpoints = []debugBreakpoint{}
 	api.ServerContext.ResumeMode = 0 // ResumeMode.Resume
@@ -94,6 +92,8 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	api.CmdClient = CommandInterface{[]debugCommand{}, map[int]string{}, sync.RWMutex{}}
 
 	// Register routes
+	router.HandleFunc("/welcome", api.handlerWelcome)
+
 	router.HandleFunc("/get_info", api.handlerGetInfo)
 	router.HandleFunc("/set_info", api.handlerSetInfo)
 
@@ -108,9 +108,7 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	router.HandleFunc("/get_messages", api.handlerGetMessages)
 
 	router.HandleFunc("/get_breakpoints", api.handlerGetBreakpoints)
-	router.HandleFunc("/set_breakpoint", api.handlerSetBreakpoint)
-	router.HandleFunc("/remove_breakpoint", api.handlerRemoveBreakpoint)
-	router.HandleFunc("/clear_breakpoints", api.handlerClearBreakpoints)
+	router.HandleFunc("/set_breakpoints", api.handlerSetBreakpoints)
 
 	router.HandleFunc("/get_resume_mode_server", api.handlerGetResumeModeServer)
 	router.HandleFunc("/get_resume_mode_client", api.handlerGetResumeModeClient)
@@ -118,6 +116,10 @@ func NewMTADebugAPI(router *mux.Router, mtaServer *MTAServer) *MTADebugAPI {
 	router.HandleFunc("/set_resume_mode_client", api.handlerSetResumeModeClient)
 
 	return api
+}
+
+func (api *MTADebugAPI) handlerWelcome(res http.ResponseWriter, req *http.Request) {
+	json.NewEncoder(res).Encode("Welcome")
 }
 
 func (api *MTADebugAPI) handlerPushCommandServer(res http.ResponseWriter, req *http.Request) {
@@ -252,45 +254,20 @@ func (api *MTADebugAPI) handlerGetBreakpoints(res http.ResponseWriter, req *http
 	json.NewEncoder(res).Encode(&api.Breakpoints)
 }
 
-func (api *MTADebugAPI) handlerSetBreakpoint(res http.ResponseWriter, req *http.Request) {
-	breakpoint := debugBreakpoint{}
-	err := json.NewDecoder(req.Body).Decode(&breakpoint)
+func (api *MTADebugAPI) handlerSetBreakpoints(res http.ResponseWriter, req *http.Request) {
+	breakpoints := []debugBreakpoint{}
+	err := json.NewDecoder(req.Body).Decode(&breakpoints)
 
 	if err != nil {
 		panic(err)
 	} else {
-		api.Breakpoints = append(api.Breakpoints, breakpoint)
+		api.Breakpoints = breakpoints
 	}
-	add_command := debugCommand{"set_breakpoint", []string{breakpoint.File, strconv.Itoa(breakpoint.Line)}, 0}
+	cmdArgs, _ := json.Marshal(breakpoints)
+
+	add_command := debugCommand{"set_breakpoints", []string{string(cmdArgs)}, 0}
 	api.CmdServer.Commands = append(api.CmdServer.Commands,add_command)
 	api.CmdClient.Commands = append(api.CmdClient.Commands,add_command)
-
-	json.NewEncoder(res).Encode(&breakpoint)
-}
-
-func (api *MTADebugAPI) handlerRemoveBreakpoint(res http.ResponseWriter, req *http.Request) {
-	breakpoint := debugBreakpoint{}
-	err := json.NewDecoder(req.Body).Decode(&breakpoint)
-
-	if err != nil {
-		panic(err)
-	} else {
-		newBreakpoints := []debugBreakpoint{}
-		for _, bp := range newBreakpoints {
-			if bp.equals(&breakpoint) {
-				newBreakpoints = append(newBreakpoints, bp)
-			}
-		}
-		api.Breakpoints = newBreakpoints
-	}
-
-	json.NewEncoder(res).Encode(&breakpoint)
-}
-
-func (api *MTADebugAPI) handlerClearBreakpoints(res http.ResponseWriter, req *http.Request) {
-	api.Breakpoints = []debugBreakpoint{}
-
-	json.NewEncoder(res).Encode(&api.Breakpoints)
 }
 
 func (api *MTADebugAPI) handlerGetResumeModeServer(res http.ResponseWriter, req *http.Request) {

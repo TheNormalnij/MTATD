@@ -12,8 +12,15 @@ Backend = Class()
 -- Launches the test and debug framework
 -----------------------------------------------------------
 function Backend:constructor(host, port)
+    -- Network config
+    self._host = host
+    self._port = port
+
     -- Build base URL
     self._baseUrl = ("http://%s:%d/MTADebug/"):format(host, port)
+
+    -- Connect status
+    self._connected = false
 
     -- Connect to backend
     self:connect(host, port)
@@ -38,7 +45,10 @@ end
 -----------------------------------------------------------
 function Backend:connect(host, port)
     -- Make initial request to check if the backend is running
-    -- TODO
+    self:request( "welcome", {}, function()
+        self._connected = true
+        self._debug:onConnected()
+    end )
 end
 
 -----------------------------------------------------------
@@ -55,8 +65,26 @@ function Backend:request(name, data, callback)
     local responseObject = nil
     local serialized = toJSON(data):gsub("%[(.*)%]", "%1") -- Fix object being embedded into a JSON array
 
+    if not (self._connected or name == "welcome") then
+        return
+    end
+
     local result = fetchRemote(self._baseUrl..name,
         function(response, errno)
+            if errno == 7 then
+                if self._connected then
+                    self._connected = false
+                    self._debug:onDisconnected()
+                    self:connect( self._host, self._port )
+                end
+
+                if name == "welcome" then
+                    self:connect( self._host, self._port )
+                end
+
+                responseObject = false -- Make sure we don't run into a freeze'
+                return
+            end
             if errno ~= 0 then
                 error("Could not reach backend (code "..errno..") with "..self._baseUrl..name)
                 responseObject = false -- Make sure we don't run into a freeze'

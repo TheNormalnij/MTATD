@@ -8,9 +8,11 @@ import {
 	InitializedEvent, TerminatedEvent, StoppedEvent, BreakpointEvent, OutputEvent, Event,
 	Thread, StackFrame, Scope, Source, Handles, Breakpoint
 } from 'vscode-debugadapter';
+import { spawn, ChildProcess } from 'child_process';
 import {DebugProtocol} from 'vscode-debugprotocol';
 import {readFileSync} from 'fs';
 import {basename, normalize} from 'path';
+import { platform } from 'os';
 import * as request from 'request';
 
 
@@ -58,6 +60,7 @@ class DebugContext {
 }
 
 class MTASADebugSession extends DebugSession {
+	private _debugProcess;
 
 	// Dummy thread ID for the server and client
 	private static SERVER_THREAD_ID = 1;
@@ -127,6 +130,27 @@ class MTASADebugSession extends DebugSession {
 		// 	Logger.setup(Logger.LogLevel.Verbose, false);
 		// }
 
+        //Get extension path (the DebugServer lays there)
+        const extensionPath = normalize(__dirname + '../../..')
+
+        // Start server
+        const env_playform = platform();
+        if (env_playform == "linux")
+        {
+            const path = normalize( extensionPath + '/DebugServerLinux');
+            this._debugProcess = spawn(path, ['51237'] );
+        }
+        else if( env_playform == "win32" )
+        {
+            const path = normalize(extensionPath + '/DebugServer.exe');
+            this._debugProcess = spawn(path, ['51237'] );
+        }
+
+        if (!this._debugProcess)
+        {
+        	return
+        }
+
 		// Delay request shortly if the MTA Server is not running yet
 		let interval: NodeJS.Timer;
 		interval = setInterval(() => {		
@@ -140,7 +164,7 @@ class MTASADebugSession extends DebugSession {
 				// Apply path from response
 				const info = JSON.parse(body);
 
-				this._resourcesPath = normalize(`${args.serverpath}/mods/deathmatch/resources/`); // TODO
+				this._resourcesPath = normalize(`${args.serverpath}/mods/deathmatch/resources/`);
 
 				// Start timer that polls for the execution being paused
 				if (!this._pollPausedTimer)
@@ -171,14 +195,17 @@ class MTASADebugSession extends DebugSession {
 		// });
 	}
 
+	protected disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
+		if (this._debugProcess){
+			this._debugProcess.kill()
+		}
+	}
+
 	/**
 	 * Called when the editor requests a breakpoint being set
 	 */
 	protected setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): void {
 		const path = args.source.path;
-
-		// Clear old breakpoints
-		request(this._backendUrl + "/MTADebug/clear_breakpoints")
 
 		// Read file contents into array for direct access
 		const lines = readFileSync(path).toString().split('\n');
@@ -204,17 +231,19 @@ class MTASADebugSession extends DebugSession {
 		this._breakPoints.set(path, breakpoints);
 
 		// Send all breakpoints to backend
-		// TODO: Send all breakpoints at once rather than creating a request for each one
+		const requestBreakpoints = new Array();
 		this._breakPoints.forEach((breakpoints, path) => {
 			for (const breakpoint of breakpoints) {
-				request(this._backendUrl + "/MTADebug/set_breakpoint", {
-					json: {
-						file: this.getRelativeResourcePath(path),
-						line: this.convertClientLineToDebugger(breakpoint.line)
-					}
-				}, () => {}); // Pass empty function to use the asynchronous version
+				requestBreakpoints.push({
+					file: this.getRelativeResourcePath(path),
+					line: this.convertClientLineToDebugger(breakpoint.line)	
+				})
 			}
 		});
+
+		request(this._backendUrl + "/MTADebug/set_breakpoints", {
+			json: requestBreakpoints
+		}, () => {}); // Pass empty function to use the asynchronous version
 
 		// Send back the actual breakpoint positions
 		response.body = {

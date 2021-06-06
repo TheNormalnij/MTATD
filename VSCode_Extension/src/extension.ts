@@ -48,38 +48,27 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         } 
 
-        // Check process state
-        ps.lookup({
-            command: 'DebugServer'
-        }, (err, resultList) => {
-            // Show error if debug server is running already
-            if (!resultList || resultList.length > 0) {
-                vscode.window.showErrorMessage('Could not start the debug server, because there is one running already!');
-                return;
-            }
+        // Get extension path (the DebugServer lays there)
+        const extensionPath = normalize(vscode.extensions.getExtension('jusonex.mtatd').extensionPath);
 
-            // Get extension path (the DebugServer lays there)
-            const extensionPath = normalize(vscode.extensions.getExtension('jusonex.mtatd').extensionPath);
-
-            const env_playform = platform();
-            // Start server
-            if (env_playform == "linux")
-            {
-                const terminal = vscode.workspace.getConfiguration().get("terminal.external.linuxExec");
-                const path = normalize(serverpath + '/mta-server64');
-                exec(`${terminal} -e "${extensionPath}/DebugServerLinux ${path} 51237"`);
-            }
-            else if( env_playform == "win32" )
-            {
-                const path = normalize(serverpath + '/MTA Server.exe');
-                exec(`start "MTA:SA Server [SCRIPT-DEBUG]" "${extensionPath}\\DebugServer.exe" "${path}" 51237`);
-            }
-            else
-            {
-                vscode.window.showErrorMessage('Unsupported platform');
-                return;
-            }
-        });
+        const env_playform = platform();
+        // Start server
+        if (env_playform == "linux")
+        {
+            const terminal = vscode.workspace.getConfiguration().get("terminal.external.linuxExec");
+            const path = normalize(serverpath + '/mta-server64');
+            exec(`${terminal} -e "${path}"`);
+        }
+        else if( env_playform == "win32" )
+        {
+            const path = normalize(serverpath + '/MTA Server.exe');
+            exec(`start "MTA:SA Server [SCRIPT-DEBUG]" "${path}"`);
+        }
+        else
+        {
+            vscode.window.showErrorMessage('Unsupported platform');
+            return;
+        }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('extension.addMTATDResource', () => {
