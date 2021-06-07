@@ -104,7 +104,7 @@ function copyFolderRecursiveSync( source, target ) {
     // Check if folder needs to be created or integrated
     var targetFolder = target;
     if ( !fs.existsSync( targetFolder ) ) {
-        fs.mkdirSync( targetFolder );
+        fs.mkdirSync( targetFolder, { recursive: true } );
     }
 
     // Copy
