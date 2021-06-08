@@ -328,11 +328,65 @@ end
 
 local function handleVariable( name, value )
     local valueType = type(value)
+    local valueRef = 0
+    if valueType == "userdata" then
+        local utype = getUserdataType( value )
+        local ptr = tostring(value):sub(11,-1)
+
+        if isElement( value ) then
+            if getAllElementData then
+                valueRef = ref(value)
+            end
+            local etype = getElementType( value )
+            if etype == "player" then
+                value = "elem:"..etype.."["..getPlayerName( value ).."]" ..ptr
+            elseif etype == "vehicle" then
+                value = "elem:"..etype.."["..getVehicleName( value ).."]"..ptr
+            elseif etype == "object" then
+                value = "elem:"..etype.."["..getElementModel( value ).."]"..ptr
+            elseif etype == "ped" then
+                value = "elem:"..etype.."["..getElementModel( value ).."]"..ptr
+            elseif etype == "pickup" then
+                local pType
+                if getPickupType( value ) == 0 then pType = "health"
+                elseif getPickupType( value ) == 1 then pType = "armor"
+                elseif getPickupType( value ) == 2 then pType = "weapon["..getWeaponNameFromID(getPickupWeapon( value )).."]"
+                else pType = "custom["..getElementModel( value ).."]"    end
+                value = "elem:"..etype.."["..pType.."]"..ptr
+            elseif etype == "marker" then
+                value = "elem:"..etype.."["..getMarkerType ( value ).."]"..ptr
+            elseif etype == "team" then
+                value = "elem:"..etype.."["..getTeamName ( value ).."]"..ptr
+            else
+                value = "elem:"..etype..ptr
+            end
+        elseif utype == "xml-node" then
+            value = "xml-node["..xmlNodeGetName( value ).."]" .. ptr
+        elseif utype == "resource-data" then
+            value = "resource["..getResourceName( value ).."]" .. ptr
+        elseif utype == "account" then
+            value = "account["..getAccountName( value ).."]" .. ptr
+        elseif utype == "acl" then
+            value = "acl["..aclGetName( value ).."]" .. ptr
+        elseif utype == "acl-group" then
+            value = "acl-group["..aclGroupGetName( value ).."]" .. ptr
+        elseif utype == "vector4" or utype == "vector3" or utype == "vector2" or utype == "matrix" then
+            value = tostring( value )
+        else
+            value = utype..ptr
+        end
+
+    elseif valueType == "table" then
+        valueRef = ref(value)
+        value = tostring(value)
+    else
+        value = tostring(value)
+    end
     return {
         name = tostring(name),
-        value = tostring(value),
+        value = value,
         type = valueType,
-        varRef = valueType == "table" and ref(value) or  0,
+        varRef = valueRef,
     }
 end
 
@@ -577,6 +631,12 @@ function MTADebug.Commands:request_variable( reference, id )
         local refValue = deref(tonumber(reference))
         if type(refValue) == "table" then
             for key, value in pairs(refValue) do
+                table.insert(variables, handleVariable( key, value ))
+            end
+        elseif isElement( refValue ) and getAllElementData then
+            local data = getAllElementData( refValue )
+            iprint( data )
+            for key, value in pairs( data ) do
                 table.insert(variables, handleVariable( key, value ))
             end
         end
