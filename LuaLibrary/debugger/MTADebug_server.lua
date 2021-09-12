@@ -82,6 +82,17 @@ function MTADebug.Commands:restart( resourceName )
 	return "Can not find resource " .. tostring( resourceName )
 end
 
+function MTADebug.Commands:refresh( resourceName )
+	local resource = Resource.getFromName( resourceName )
+	local success = refreshResources( false, resource or nil )
+	return success and "Successfully refreshed" or "Can't refresh resources"
+end
+
+function MTADebug.Commands:refreshall( )
+	local success = refreshResources( true )
+	return success and "Resources refreshed" or "Can't refresh resources"
+end
+
 function MTADebug.Commands:stop( resourceName )
 	local resource = Resource.getFromName( resourceName )
 	if resource then

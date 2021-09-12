@@ -20,7 +20,7 @@
 		<right name="function.stopResource" access="true"/>
 		<right name="function.restartResource" access="true"/>
 		<right name="function.fetchRemote" access="true" />
-		<right name="function.fetchRemote" access="true" />
+		<right name="function.refreshResources" access="true" />
 		<right name="function.executeCommandHandler" access="true" />
 
 		<right name="general.ModifyOtherObjects" access="true"/>
