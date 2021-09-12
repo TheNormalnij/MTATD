@@ -29,3 +29,14 @@ function MTADebug:_startResourceDebug( resource )
     local handler = ResourceLoader:new( resource, self )
     handler:load()
 end
+
+function MTADebug:_getResourceBasePath( resource )
+    local path = self._resourcePathes[resource]
+    if path then
+        return path
+    else
+        path = resource:getRootElement():getData( "__base_path" )
+        self._resourcePathes[resource] = path
+        return path
+    end
+end

@@ -5,7 +5,7 @@ function MTADebug:_platformInit()
     })
 
 	for _, resource in pairs( getResources() ) do
-		self._resourcePathes[resource] = self:_getResourceBasePath( resource )
+		self._resourcePathes[resource] = self:_getResourceOrganizationalPath( resource )
 	end
 
 	resourceRoot:setData( "__base_path", self._resourcePathes[resource] )
@@ -16,7 +16,7 @@ function MTADebug:_platformInit()
     end )
 
     addEventHandler( "onResourceStart", root, function(resource)
-    	local path = self:_getResourceBasePath( resource )
+    	local path = self:_getResourceOrganizationalPath( resource )
     	self._resourcePathes[resource] = path
     	source:setData( "__base_path", path )
     	self:sendMessage( "Resource started " .. resource:getName() )
@@ -38,9 +38,20 @@ end
 --
 -- Returns the built base path
 -----------------------------------------------------------
-function MTADebug:_getResourceBasePath( resource )
+function MTADebug:_getResourceOrganizationalPath( resource )
     local organizationalPath = getResourceOrganizationalPath(resource)
     return (organizationalPath ~= "" and organizationalPath.."/" or "")..getResourceName(resource).."/"
+end
+
+function MTADebug:_getResourceBasePath( resource )
+    local path = self._resourcePathes[resource]
+    if path then
+        return path
+    else
+        path = self:_getResourceOrganizationalPath( resource )
+        self._resourcePathes[resource] = path
+        return path
+    end
 end
 
 function MTADebug:startDebugResource( resource )

@@ -226,14 +226,14 @@ function MTADebug:genDebugLink( resource, filePath )
             debugLink = self._lastDebugLink + 1
             self._lastDebugLink = debugLink
             self._debugLinksMap[resource][filePath] = debugLink
-            self._debugLinks[debugLink] = self._resourcePathes[resource] .. filePath
+            self._debugLinks[debugLink] = self:_getResourceBasePath( resource ) .. filePath
             return "&" .. debugLink
         end
     else
         debugLink = self._lastDebugLink + 1
         self._lastDebugLink = debugLink
         self._debugLinksMap[resource] = { [filePath] = debugLink }
-        self._debugLinks[debugLink] = self._resourcePathes[resource] .. filePath
+        self._debugLinks[debugLink] = self:_getResourceBasePath( resource ) .. filePath
         return "&" .. debugLink
     end
 end
@@ -246,7 +246,7 @@ function MTADebug:fixPathInString(str)
 end
 
 function MTADebug:getFullFilePath( resource, filePath )
-    return self._resourcePathes[resource] .. filePath
+    return self:_getResourceBasePath( resource ) .. filePath
 end
 
 -----------------------------------------------------------
