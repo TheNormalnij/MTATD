@@ -8,7 +8,7 @@ function MTADebug:_platformInit()
         local resourceName, pathInResource = file:match( "^(.-)\\(.+)" )
         if resourceName then
             resource = getResourceFromName( resourceName )
-            if resource then
+            if resource and self._resourcePathes[resource] and pathInResource then
                 file = ("%s/%s"):format( self._resourcePathes[resource], pathInResource )
             end
         end
