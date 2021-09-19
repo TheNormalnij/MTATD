@@ -7,9 +7,9 @@ function MTADebug:_platformInit()
         message = self:fixPathInString(message)
         local resourceName, pathInResource = file:match( "^(.-)\\(.+)" )
         if resourceName then
-            resource = getResourceFromName( resourceName )
-            if resource and self._resourcePathes[resource] and pathInResource then
-                file = ("%s/%s"):format( self._resourcePathes[resource], pathInResource )
+            local resourcePath = self:_getResourceBasePath( getResourceFromName( resourceName ) )
+            if resourcePath then
+                file = ("%s/%s"):format( resourcePath, pathInResource )
             end
         end
         self:sendMessage(("[Client] %s"):format(message), MessageLevelToType[level], file, line)

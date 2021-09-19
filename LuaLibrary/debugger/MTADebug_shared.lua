@@ -635,7 +635,6 @@ function MTADebug.Commands:request_variable( reference, id )
             end
         elseif isElement( refValue ) and getAllElementData then
             local data = getAllElementData( refValue )
-            iprint( data )
             for key, value in pairs( data ) do
                 table.insert(variables, handleVariable( key, value ))
             end

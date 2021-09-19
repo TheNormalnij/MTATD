@@ -5,7 +5,10 @@ function MTADebug:_platformInit()
     })
 
 	for _, resource in pairs( getResources() ) do
-		self._resourcePathes[resource] = self:_getResourceOrganizationalPath( resource )
+		local resourceRoot = resource:getRootElement()
+		if resourceRoot then
+			resourceRoot:setData( "__base_path", self:_getResourceBasePath( resource ) )
+		end
 	end
 
 	resourceRoot:setData( "__base_path", self._resourcePathes[resource] )
@@ -16,9 +19,8 @@ function MTADebug:_platformInit()
     end )
 
     addEventHandler( "onResourceStart", root, function(resource)
-    	local path = self:_getResourceOrganizationalPath( resource )
-    	self._resourcePathes[resource] = path
-    	source:setData( "__base_path", path )
+    	self._resourcePathes[resource] = nil
+    	source:setData( "__base_path", self:_getResourceBasePath( resource ) )
     	self:sendMessage( "Resource started " .. resource:getName() )
     end )
 
