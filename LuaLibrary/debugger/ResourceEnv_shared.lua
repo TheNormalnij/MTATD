@@ -335,7 +335,7 @@ function ResourceEnv:constructor(resource, debugger)
 		local fun = owner[name]
 		owner[name] = function( ... )
 			local output = fun( ... )
-			fixClassObject( object )
+			fixClassObject( output )
 			return output
 		end
 	end
