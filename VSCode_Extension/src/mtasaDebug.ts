@@ -285,7 +285,7 @@ class MTASADebugSession extends DebugSession {
 			const line = Number(frameInfo[2]);
 			const functionName = frameInfo[3];
 
-	        const fullFilePath = this._resourcesPath + path
+	        const fullFilePath = normalize(this._resourcesPath + path).replace(/\\/g, '/')
 			frames.push(new StackFrame(i, functionName, new Source(basename(path),
 					this.convertDebuggerPathToClient(fullFilePath)),
 					this.convertDebuggerLineToClient(line), 0));
@@ -463,7 +463,7 @@ class MTASADebugSession extends DebugSession {
 					const obj = objs[i];
 					var event = new OutputEvent(obj.message + '\n', MessageTypes[obj.type]);
 					if (obj.file) {
-						(<DebugProtocol.OutputEvent>event).body.source = new Source(basename(obj.file), this._resourcesPath + obj.file);
+						(<DebugProtocol.OutputEvent>event).body.source = new Source(basename(obj.file), normalize(this._resourcesPath + obj.file).replace(/\\/g, '/'));
 						(<DebugProtocol.OutputEvent>event).body.line = obj.line;
 					}
 					(<DebugProtocol.OutputEvent>event).body.variablesReference = obj.varRef;

@@ -5,6 +5,8 @@ function MTADebug:_platformInit()
     -- Add messages output
     addEventHandler( "onClientDebugMessage", root, function(message, level, file, line)
         message = self:fixPathInString(message)
+        file = file or "<unknown>"
+        line = line or 0
         local resourceName, pathInResource = file:match( "^(.-)\\(.+)" )
         if resourceName then
             local resourcePath = self:_getResourceBasePath( getResourceFromName( resourceName ) )
@@ -31,6 +33,9 @@ function MTADebug:_startResourceDebug( resource )
 end
 
 function MTADebug:_getResourceBasePath( resource )
+    if not resource then
+        return '<unknow>'
+    end
     local path = self._resourcePathes[resource]
     if path then
         return path

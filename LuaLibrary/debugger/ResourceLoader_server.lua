@@ -50,6 +50,14 @@ function ResourceLoader:load()
 
     removeEventHandler( "onResourceStart", root, resourceStartHandler )
 
+    if isStarted then
+        addEventHandler( "onResourceStop", self._resource:getRootElement(), function()
+        resourceRoot:removeData( "__client_scripts" )
+        resourceRoot:removeData( "__client_exports" )
+        resourceRoot:removeData( "__debug" )
+        end )
+    end
+
     return isStarted
 end
 
