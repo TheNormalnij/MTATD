@@ -46,6 +46,8 @@ function ResourceEnv:constructor(resource, debugger)
 	self._xml = xml
 	local startHandlers = {}
 	self._startHandlers = startHandlers
+	local keyBinds = {}
+	self._keyBinds = keyBinds
 
 	local env = copy(DefaultEnv)
 	env._G = env
@@ -345,7 +347,9 @@ function ResourceEnv:constructor(resource, debugger)
 
 	env.getElementData = function( ... )
 		local result = getElementData( ... )
-		fixMetaInTableDeep( result )
+		if result then
+			fixMetaInTableDeep( result )
+		end
 		return result
 	end
 
@@ -589,6 +593,53 @@ function ResourceEnv:constructor(resource, debugger)
 
 	end
 
+	-- Bindkey
+
+	if triggerClientEvent then
+
+	else
+		local function getBindData( key, state, fun )
+			for id, data in pairs( keyBinds ) do
+				if data[1] == key and data[2] == state and data[3] == fun then
+					return id, data
+				end
+			end
+		end
+
+		env.bindKey = function( key, state, func )
+			if type( func ) ~= "function" then
+				error( "Bad argument #3 in bindKey", 2 )
+			end
+			if getBindData( key, state, fun ) then
+				error( "Key already bound", 2 )
+			end
+			local __fun = function( ... )
+				local arg = { ... }
+				CurrentEnv = env
+				self._debugger:debugRun( function() func( unpackFixed( arg ) ) end ) 
+				CurrentEnv = _G
+			end
+
+			table.insert( keyBinds, { key, state, func, __fun } )
+
+			bindKey( key, state, __fun )
+		end
+
+		env.unbindKey = function( key, state, fun )
+			for id, data in pairs( keyBinds ) do
+				if data[1] == key
+					and (state == nil or data[2] == state)
+					and (fun == nil or data[3] == fun)
+				then
+					unbindKey( data[1], data[2], data[4] )
+					keyBinds[id] = nil
+				end
+			end
+		end
+	end
+
+	-- End
+
     addEventHandler( stopEventName, resourceRoot, function()
         self:destructor()
     end )
@@ -631,7 +682,15 @@ function ResourceEnv:destructor()
 		end
 	end
 
+	self:bindedKeysDestructor()
+
 	resourceExports[self._resource] = nil
+end
+
+function ResourceEnv:bindedKeysDestructor()
+	for id, data in pairs( self._keyBinds ) do
+		unbindKey( data[1], data[2], data[4] )
+	end
 end
 
 function ResourceEnv:loadFile( filePath )
