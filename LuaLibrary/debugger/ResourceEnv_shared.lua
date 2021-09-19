@@ -15,7 +15,15 @@ local resourceExports = {}
 
 CurrentEnv = _G
 
-local startEventName = triggerClientEvent and "onResourceStart" or "onClientResourceStart"
+local stopEventName
+local startEventName
+if triggerClientEvent then
+	stopEventName = "onResourceStop"
+	startEventName = "onResourceStart"
+else
+	stopEventName = "onClientResourceStop"
+	startEventName = "onClientResourceStart"
+end
 
 ResourceEnv = Class()
 
@@ -470,8 +478,8 @@ function ResourceEnv:constructor(resource, debugger)
 				tempValues( backupKeys )
 				local arg = { ... }
 
-				if not self._resource:getState() == 'running' then
-					removeEventHandler( eventName, this, fun )
+				if self._resource:getState() ~= 'running' then
+					removeEventHandler( eventName, element, fun )
 					return
 				end
 
@@ -580,6 +588,10 @@ function ResourceEnv:constructor(resource, debugger)
 		end
 
 	end
+
+    addEventHandler( stopEventName, resourceRoot, function()
+        self:destructor()
+    end )
 
 	self._env = env
 end
