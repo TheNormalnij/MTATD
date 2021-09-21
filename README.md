@@ -22,16 +22,19 @@ This extension implements a debug adapter for MTA:SA's (Multi Theft Auto: San An
 * Fix bugs
 
 ## Usage
-1) When you start debugging, _Visual Studio Code_ asks you to create a new launch configuration based upon a default configuration.  
+1) Use `resources` folder as root folder for VS Code workspace.
+2) When you start debugging, _Visual Studio Code_ asks you to create a new launch configuration based upon a default configuration.  
 Make then sure you insert a valid `serverpath` (the path to the server folder **without** `MTA Server.exe`).   
-2) Add the _debug resource_ to your project by executing the command `MTA:TD: Add debug resource to current project` (press `F1`, enter the command and submit). This only works if you opened the root folder of your server resources folder
-3) Launch the debug test server by pressing _F1_ in _Visual Studio Code_ and entering `MTA:TD: Start MTA Debug Server` (the auto-completion will help you). You could also create a key mapping for this command.
-4) Start target resource via `!start_debug resourceName`
-5) You're ready to start debugging now!
+3) Add the _debug resource_ to your project by executing the command `MTA:TD: Add debug resource to current project` (press `F1`, enter the command and submit). This only works if you opened the root folder of your server resources folder
+4) Launch the debug test server by pressing _F1_ in _Visual Studio Code_ and entering `MTA:TD: Start MTA Debug Server` (the auto-completion will help you). You could also create a key mapping for this command.
+5) Start target resource via `!start_debug resourceName`
+6) You're ready to start debugging now!
 
 ## Commands
 
 * `!start resourceName` - Start resource
 * `!stop resourceName` -  Stop resource
 * `!restart resourceName` -  Restart resource
+* `!refresh resourceName` -  Refresh resource
+* `!refreshall` -  Refresh all resources
 * `!start_debug resourceName` - Start resource in debug mode
