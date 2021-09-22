@@ -1,20 +1,25 @@
 <meta>
     <info type="script" version="1.3"></info>
     <oop>true</oop>
-    <script src="EnvBackup_shared.lua" type="shared"></script>
-    <script src="Class_shared.lua" type="shared"></script>
-    <script src="Backend_shared.lua" type="shared"></script>
-    <script src="ResourceEnv_shared.lua" type="shared"></script>
+    <script src="EnvBackup_shared.lua" type="shared" />
+    <script src="Class_shared.lua" type="shared" />
+    <script src="Backend_shared.lua" type="shared" />
 
-    <script src="MTADebug_shared.lua" type="shared"></script>
-    <script src="MTADebug_client.lua" type="client"></script>
-    <script src="MTADebug_server.lua" type="server"></script>
+    <script src="Utils_shared.lua" type="shared" />
 
-    <script src="ResourceLoader_shared.lua" type="shared"></script>
-    <script src="ResourceLoader_client.lua" type="client"></script>
-    <script src="ResourceLoader_server.lua" type="server"></script>
+    <script src="ResourceEnv_shared.lua" type="shared" />
+    <script src="ResourceEnv_client.lua" type="client" />
+    <script src="ResourceEnv_server.lua" type="server" />
 
-	<script src="main_shared.lua" type="shared"></script>
+    <script src="MTADebug_shared.lua" type="shared" />
+    <script src="MTADebug_client.lua" type="client" />
+    <script src="MTADebug_server.lua" type="server" />
+
+    <script src="ResourceLoader_shared.lua" type="shared" />
+    <script src="ResourceLoader_client.lua" type="client" />
+    <script src="ResourceLoader_server.lua" type="server" />
+
+	<script src="main_shared.lua" type="shared" />
 	<aclrequest>
 		<right name="function.startResource" access="true"/>
 		<right name="function.stopResource" access="true"/>

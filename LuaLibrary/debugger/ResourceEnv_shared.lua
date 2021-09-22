@@ -1,29 +1,6 @@
-local copy
-copy = function(t)
-	if type(t) == "table" then
-		local o = {}
-		for k, v in pairs(t) do
-			o[k] = copy(v)
-		end
-		return o
-	else
-		return t
-	end
-end
-
 local resourceExports = {}
 
 CurrentEnv = _G
-
-local stopEventName
-local startEventName
-if triggerClientEvent then
-	stopEventName = "onResourceStop"
-	startEventName = "onResourceStart"
-else
-	stopEventName = "onClientResourceStop"
-	startEventName = "onClientResourceStart"
-end
 
 ResourceEnv = Class()
 
@@ -34,22 +11,13 @@ function ResourceEnv:constructor(resource, debugger)
 	self._resourceName = resourceName
 	local resourceRoot = resource:getRootElement()
 	self._resourceRoot = resourceRoot
-	local eventHandlers = {}
-	self._eventHandlers = eventHandlers
-	local timers = {}
-	self._timers = timers
-	local files = {}
-	self._files = files
-	local commands = {}
-	self._commands = commands
+	self._dynElementRoot = resource:getDynamicElementRoot()
 	local xml = {}
 	self._xml = xml
-	local startHandlers = {}
-	self._startHandlers = startHandlers
-	local keyBinds = {}
-	self._keyBinds = keyBinds
+	self._startHandlers = {}
 
-	local env = copy(DefaultEnv)
+	local env = table.copy(DefaultEnv)
+	self._env = env
 	env._G = env
 	env.resource = resource
 	env.resourceRoot = resourceRoot
@@ -57,127 +25,25 @@ function ResourceEnv:constructor(resource, debugger)
 
 	-- Fix metatables
 
-	local currentEnvClasses = {}
+	self._currentEnvClasses = {}
 
 	for _, className in pairs( UsedMetateble ) do
 		local meta = getmetatable( _G[className] )
 		setmetatable( env[className], meta )
-		currentEnvClasses[ _G[className] ] = env[className]
+		self._currentEnvClasses[ _G[className] ] = env[className]
 	end
-
-	local function fixClassObject( obj, classTable )
-		local prevmeta = getmetatable( obj )
-		local prev_index = prevmeta.__index
-		debug.setmetatable(obj, {
-			__class = classTable,
-			__index = function( self, key )
-				return classTable[key] or prev_index( obj, key )
-			end,
-			__newindex = prevmeta.__newindex,
-			__set = prevmeta.__set,
-			__get = prevmeta.__get,
-		})
-	end
-
-	local function fixMeta( val )
-		local meta = getmetatable( val )
-		if meta and meta.__class and currentEnvClasses[ meta.__class ] then
-			fixClassObject( val, currentEnvClasses[ meta.__class ] )
-		end
-	end
-	self._fixEnvObjectMeta = fixMeta
-
-	local function fixMetaInTableDeep( t, cheched )
-		local cheched = cheched or {}
-		cheched[t] = true
-		fixMeta( t )
-		if type( t ) == "table" and not cheched[t] then
-			for key, value in pairs( t ) do
-				fixMetaInTableDeep( key, cheched )
-				fixMetaInTableDeep( value, cheched )
-			end
-		end
-	end
-	self._fixMetaInTableDeep = fixMetaInTableDeep
-
-	local function fixMetaInTable( vals )
-		local meta
-		for i = 1, #vals do
-			meta = getmetatable( vals[i] )
-			if meta and meta.__class and currentEnvClasses[ meta.__class ] then
-				fixClassObject( vals[i], currentEnvClasses[ meta.__class ] )
-			end
-		end
-	end
-
-	local function unpackFixed( vals )
-		fixMetaInTable( vals )
-		return unpack( vals )
-	end
-
-
 
 	-- Exports
-
-	env.call = function( targetResource, funcName, ... )
-		if resourceExports[targetResource] then
-			return resourceExports[targetResource][funcName]( ... )
-		else
-			return call( targetResource, funcName, ... )
-		end
-	end
-
-	do
-		local type = type
-		local setmetatable = setmetatable
-		local getResourceRootElement = getResourceRootElement
-		local call = env.call
-		local getResourceFromName = getResourceFromName
-		local tostring = tostring
-		local outputDebugString = outputDebugString
-
-		local rescallMT = {}
-		function rescallMT:__index(k)
-		    if type(k) ~= 'string' then k = tostring(k) end
-		        self[k] = function(resExportTable, ...)
-		        if type(self.res) == 'userdata' and getResourceRootElement(self.res) then
-		                return call(self.res, k, ...)
-		        else
-		                return nil
-		        end
-		    end
-		    return self[k]
-		end
-
-		local exportsMT = {}
-		function exportsMT:__index(k)
-		    if type(k) == 'userdata' and getResourceRootElement(k) then
-		        return setmetatable({ res = k }, rescallMT)
-		    elseif type(k) ~= 'string' then
-		        k = tostring(k)
-		    end
-
-		    local res = getResourceFromName(k)
-		    if res and getResourceRootElement(res) then
-		        return setmetatable({ res = res }, rescallMT)
-		    else
-		        outputDebugString('exports: Call to non-running server resource (' .. k .. ')', 1)
-		        return setmetatable({}, rescallMT)
-		    end
-		end
-		env.exports = setmetatable({}, exportsMT)
-	end
+	self:initCallFunctions()
 
 	-- pcall
-
 	env.pcall = function( __pcallFunction, ... )
 		local arg = { ... }
-		local result = { self._debugger:debugRun( function() return __pcallFunction( unpackFixed( arg ) ) end ) }
-		return unpackFixed( result )
+		local result = { self._debugger:debugRun( function() return __pcallFunction( self:_unpackFixed( arg ) ) end ) }
+		return self:_unpackFixed( result )
 	end
 
 	-- Loadstring
-
 	env.loadstring = function( content, blockName )
 		if type( content ) ~= "string" then
 			error( "Bad argument 1 for loadstring", 2 )
@@ -198,210 +64,114 @@ function ResourceEnv:constructor(resource, debugger)
 		return fun, errorMessage
 	end
 
-	local dynElementRoot = resource:getDynamicElementRoot()
-	local function addCreateElementFunction( owner, functionName, classTable )
-		local _fun = owner[functionName]
-		owner[functionName] = function( ... )
-			local result = _fun( ... )
-			if result then
-				fixClassObject( result, classTable )
-				result:setParent( dynElementRoot )
-				return result
-			else
-				error("Can not create object", 2)
-			end
-		end
-	end
 
-	addCreateElementFunction( env, "createBlip", env.Blip )
-	addCreateElementFunction( env.Blip, "create", env.Blip )
-	addCreateElementFunction( env, "createBlipAttachedTo", env.Blip )
-	addCreateElementFunction( env.Blip, "createAttachedTo", env.Blip )
+	self:_addCreateElementFunction( env, "createBlip", env.Blip )
+	self:_addCreateElementFunction( env.Blip, "create", env.Blip )
+	self:_addCreateElementFunction( env, "createBlipAttachedTo", env.Blip )
+	self:_addCreateElementFunction( env.Blip, "createAttachedTo", env.Blip )
 
-	addCreateElementFunction( env, "createColCircle", env.ColShape )
-	addCreateElementFunction( env, "createColCuboid", env.ColShape )
-	addCreateElementFunction( env, "createColPolygon", env.ColShape )
-	addCreateElementFunction( env, "createColRectangle", env.ColShape )
-	addCreateElementFunction( env, "createColSphere", env.ColShape )
-	addCreateElementFunction( env, "createColTube", env.ColShape )
+	self:_addCreateElementFunction( env, "createColCircle", env.ColShape )
+	self:_addCreateElementFunction( env, "createColCuboid", env.ColShape )
+	self:_addCreateElementFunction( env, "createColPolygon", env.ColShape )
+	self:_addCreateElementFunction( env, "createColRectangle", env.ColShape )
+	self:_addCreateElementFunction( env, "createColSphere", env.ColShape )
+	self:_addCreateElementFunction( env, "createColTube", env.ColShape )
 
-	addCreateElementFunction( env.ColShape, "Circle", env.ColShape  )
-	addCreateElementFunction( env.ColShape, "Cuboid", env.ColShape  )
-	addCreateElementFunction( env.ColShape, "Polygon", env.ColShape  )
-	addCreateElementFunction( env.ColShape, "Rectangle", env.ColShape  )
-	addCreateElementFunction( env.ColShape, "Sphere", env.ColShape  )
-	addCreateElementFunction( env.ColShape, "Tube", env.ColShape  )
+	self:_addCreateElementFunction( env.ColShape, "Circle", env.ColShape  )
+	self:_addCreateElementFunction( env.ColShape, "Cuboid", env.ColShape  )
+	self:_addCreateElementFunction( env.ColShape, "Polygon", env.ColShape  )
+	self:_addCreateElementFunction( env.ColShape, "Rectangle", env.ColShape  )
+	self:_addCreateElementFunction( env.ColShape, "Sphere", env.ColShape  )
+	self:_addCreateElementFunction( env.ColShape, "Tube", env.ColShape  )
 
-	addCreateElementFunction( env, "createElement", env.Element )
-	addCreateElementFunction( env.Element, "create", env.Element )
-	addCreateElementFunction( env, "cloneElement", env.Element )
-	addCreateElementFunction( env.Element, "clone", env.Element )
+	self:_addCreateElementFunction( env, "createElement", env.Element )
+	self:_addCreateElementFunction( env.Element, "create", env.Element )
+	self:_addCreateElementFunction( env, "cloneElement", env.Element )
+	self:_addCreateElementFunction( env.Element, "clone", env.Element )
 
-	addCreateElementFunction( env, "createMarker", env.Marker )
-	addCreateElementFunction( env.Marker, "create", env.Marker )
+	self:_addCreateElementFunction( env, "createMarker", env.Marker )
+	self:_addCreateElementFunction( env.Marker, "create", env.Marker )
 
-	addCreateElementFunction( env, "createObject", env.Object )
-	addCreateElementFunction( env.Object, "create", env.Object )
+	self:_addCreateElementFunction( env, "createObject", env.Object )
+	self:_addCreateElementFunction( env.Object, "create", env.Object )
 
-	addCreateElementFunction( env, "createPed", env.Ped )
-	addCreateElementFunction( env.Ped, "create", env.Ped )
+	self:_addCreateElementFunction( env, "createPed", env.Ped )
+	self:_addCreateElementFunction( env.Ped, "create", env.Ped )
 
-	addCreateElementFunction( env, "createPickup", env.Pickup )
-	addCreateElementFunction( env.Pickup, "create", env.Pickup )
+	self:_addCreateElementFunction( env, "createPickup", env.Pickup )
+	self:_addCreateElementFunction( env.Pickup, "create", env.Pickup )
 
-	addCreateElementFunction( env, "createRadarArea", env.RadarArea )
-	addCreateElementFunction( env.RadarArea, "create", env.RadarArea )
+	self:_addCreateElementFunction( env, "createRadarArea", env.RadarArea )
+	self:_addCreateElementFunction( env.RadarArea, "create", env.RadarArea )
 
-	addCreateElementFunction( env, "createVehicle", env.Vehicle )
-	addCreateElementFunction( env.Vehicle, "create", env.Vehicle )
+	self:_addCreateElementFunction( env, "createVehicle", env.Vehicle )
+	self:_addCreateElementFunction( env.Vehicle, "create", env.Vehicle )
 
-	addCreateElementFunction( env, "createWater", env.Water )
-	addCreateElementFunction( env.Water, "create", env.Water )
-
-	if triggerClientEvent then
-		self._databases = {}
-
-		local function addCreateDatabaseFunction( owner, functionName, classTable )
-			local _fun = owner[functionName]
-			owner[functionName] = function( ... )
-				local result = _fun( ... )
-				if result then
-					fixClassObject( result, classTable )
-					self._databases[result] = true
-					return result
-				else
-					error("Can not create object", 2)
-				end
-			end
-		end
-
-		addCreateDatabaseFunction( env, "dbConnect", env.Connection )
-		addCreateDatabaseFunction( env.Connection, "create", env.Connection )
-
-		addCreateElementFunction( env, "createTeam", env.Team )
-		addCreateElementFunction( env.Team, "create", env.Team )
-	else
-
-	end
-
-	local function transformFilePath( path )
-		if path:sub(1, 1) ~= ":" then
-			path = (":%s/%s"):format( resourceName, path )
-		end
-		return path
-	end
-
-	local FiliClassTable = env.File
-	local function _fileOpen( path, readOnly )
-		local file = fileOpen( transformFilePath( path ), readOnly )
-		if file then
-			fixClassObject( file, FiliClassTable )
-			table.insert( files, file )
-			return file
-		else
-			error( "Can't open file " .. tostring(path), 2 )
-		end
-	end
-
-	env.fileOpen = _fileOpen
-	env.File.open = _fileOpen
-
-	local function _fileClose( file )
-		for i, f in pairs( files ) do
-			if f == file then
-				table.remove( files, i )
-			end
-		end
-		return fileClose( file )
-	end 
-
-	env.fileClose = _fileClose
-	env.File.close = _fileClose
+	self:_addCreateElementFunction( env, "createWater", env.Water )
+	self:_addCreateElementFunction( env.Water, "create", env.Water )
 
 	-- Fix output for some functions
 
-	local function fixFunctionTableOutput( owner, name )
-		local fun = owner[name]
-		owner[name] = function( ... )
-			local output = fun( ... )
-			if output then
-				fixMetaInTable( output )
-				return output
-			end
-			error( "Failed to call " .. name, 2 )
-		end
-
-	end
-
-	local function fixFucntionOutput( owner, name )
-		local fun = owner[name]
-		owner[name] = function( ... )
-			local output = fun( ... )
-			fixClassObject( output )
-			return output
-		end
-	end
-
-	fixFunctionTableOutput( env, "getElementsByType" )
-	fixFunctionTableOutput( env.Element, "getByType" )
+	self:_fixFunctionTableOutput( env, "getElementsByType" )
+	self:_fixFunctionTableOutput( env.Element, "getByType" )
 
 	env.getElementData = function( ... )
 		local result = getElementData( ... )
 		if result then
-			fixMetaInTableDeep( result )
+			self:_fixMetaInTableDeep( result )
 		end
 		return result
 	end
 
 	env.Element.getData = env.getElementData
 
-	fixFunctionTableOutput( env, "getElementsByType" )
-	fixFunctionTableOutput( env.Element, "getByType" )
+	self:_fixFunctionTableOutput( env, "getElementsByType" )
+	self:_fixFunctionTableOutput( env.Element, "getByType" )
 
-	fixFucntionOutput( env, "getRandomPlayer" )
-	fixFucntionOutput( env.Player, "getRandom" )
+	self:_fixFucntionOutput( env, "getRandomPlayer" )
+	self:_fixFucntionOutput( env.Player, "getRandom" )
 
-	fixFucntionOutput( env, "getPlayerAccount" )
-	fixFucntionOutput( env.Player, "getAccount" )
+	self:_fixFucntionOutput( env, "getPlayerAccount" )
+	self:_fixFucntionOutput( env.Player, "getAccount" )
 
-	fixFucntionOutput( env, "getPlayerFromName" )
-	fixFucntionOutput( env.Player, "getFromName" )
+	self:_fixFucntionOutput( env, "getPlayerFromName" )
+	self:_fixFucntionOutput( env.Player, "getFromName" )
 
-	fixFucntionOutput( env, "getPlayerTeam" )
-	fixFucntionOutput( env.Player, "getTeam" )
+	self:_fixFucntionOutput( env, "getPlayerTeam" )
+	self:_fixFucntionOutput( env.Player, "getTeam" )
 
-	fixFunctionTableOutput( env, "getAlivePlayers" )
-	fixFunctionTableOutput( env.Player, "getAllAlive" )
+	self:_fixFunctionTableOutput( env, "getAlivePlayers" )
+	self:_fixFunctionTableOutput( env.Player, "getAllAlive" )
 
-	fixFunctionTableOutput( env, "getDeadPlayers" )
-	fixFunctionTableOutput( env.Player, "getAllDead" )
+	self:_fixFunctionTableOutput( env, "getDeadPlayers" )
+	self:_fixFunctionTableOutput( env.Player, "getAllDead" )
 
-	fixFucntionOutput( env, "getPedOccupiedVehicle" )
-	fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
+	self:_fixFucntionOutput( env, "getPedOccupiedVehicle" )
+	self:_fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
 
-	fixFucntionOutput( env, "getPedTarget" )
-	fixFucntionOutput( env.Ped, "getTarget" )
+	self:_fixFucntionOutput( env, "getPedTarget" )
+	self:_fixFucntionOutput( env.Ped, "getTarget" )
 
-	fixFucntionOutput( env, "getPedOccupiedVehicle" )
-	fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
+	self:_fixFucntionOutput( env, "getPedOccupiedVehicle" )
+	self:_fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
 
-	fixFucntionOutput( env, "getVehicleController" )
-	fixFucntionOutput( env.Vehicle, "getController" )
+	self:_fixFucntionOutput( env, "getVehicleController" )
+	self:_fixFucntionOutput( env.Vehicle, "getController" )
 
-	fixFucntionOutput( env, "getVehicleOccupant" )
-	fixFucntionOutput( env.Vehicle, "getOccupant" )
+	self:_fixFucntionOutput( env, "getVehicleOccupant" )
+	self:_fixFucntionOutput( env.Vehicle, "getOccupant" )
 
-	fixFucntionOutput( env, "getVehicleTowedByVehicle" )
-	fixFucntionOutput( env.Vehicle, "getTowedByVehicle" )
+	self:_fixFucntionOutput( env, "getVehicleTowedByVehicle" )
+	self:_fixFucntionOutput( env.Vehicle, "getTowedByVehicle" )
 
-	fixFucntionOutput( env, "getVehicleTowingVehicle" )
-	fixFucntionOutput( env.Vehicle, "getTowingVehicle" )
+	self:_fixFucntionOutput( env, "getVehicleTowingVehicle" )
+	self:_fixFucntionOutput( env.Vehicle, "getTowingVehicle" )
 
 	env.getVehicleOccupants = function( vehicle )
 		local output = getVehicleOccupants( vehicle )
 		if output then
 			for i = 0, 4 do
-				fixClassObject( output[i] )
+				self:_fixClassObject( output[i] )
 			end
 			return output
 		end
@@ -410,51 +180,207 @@ function ResourceEnv:constructor(resource, debugger)
 
 	env.Vehicle.getOccupants = env.getVehicleOccupants
 
-	if triggerClientEvent then
-		fixFucntionOutput( env, "getAccountPlayer" )
-		fixFucntionOutput( env.Account, "getPlayer" )
-	else
-
-	end
-
-	-- Callback functions
-
-	local backup = {}
-	local function tempValues( values )
-		for _, key in pairs( values ) do
-			fixMeta( _G[key] )
-			backup[key] = env[key]
-			env[key] = _G[key]
-		end
-	end
-
-	local function restoreBackup()
-		for key in pairs( backup ) do
-			env[key] = backup[key]
-		end
-	end
-
+	-- Files
+	self:initFileFunctions()
 	-- Commands
+	self:initCommandHandlersFunctions()
 
-	env.addCommandHandler = function(cmd, __commandFunction, ... )
-		commands[cmd] = true
+	-- Events
+	self:initEventHandlersFunctions()
+
+	-- Timers
+	self:initTimerFunctions()
+
+	-- Bindkey
+	self:initBindKeysFunctions()
+
+	self:_platformInit()
+
+    addEventHandler( self.stopEventName, resourceRoot, function()
+        self:destructor()
+    end )
+end
+
+function ResourceEnv:_fixClassObject( obj, classTable )
+	local prevmeta = getmetatable( obj )
+	local prev_index = prevmeta.__index
+	debug.setmetatable(obj, {
+		__class = classTable,
+		__index = function( self, key )
+			return classTable[key] or prev_index( obj, key )
+		end,
+		__newindex = prevmeta.__newindex,
+		__set = prevmeta.__set,
+		__get = prevmeta.__get,
+	})
+end
+
+function ResourceEnv:_fixMeta( val )
+	local meta = getmetatable( val )
+	if meta and meta.__class and self._currentEnvClasses[ meta.__class ] then
+		self:_fixClassObject( val, self._currentEnvClasses[ meta.__class ] )
+	end
+end
+
+function ResourceEnv:_fixMetaInTable( vals )
+	local meta
+	for i = 1, #vals do
+		meta = getmetatable( vals[i] )
+		if meta and meta.__class and self._currentEnvClasses[ meta.__class ] then
+			self:_fixClassObject( vals[i], self._currentEnvClasses[ meta.__class ] )
+		end
+	end
+end
+
+function ResourceEnv:_fixFunctionTableOutput( owner, name )
+	local fun = owner[name]
+	owner[name] = function( ... )
+		local output = fun( ... )
+		if output then
+			self:_fixMetaInTable( output )
+			return output
+		end
+		error( "Failed to call " .. name, 2 )
+	end
+
+end
+
+function ResourceEnv:_fixFucntionOutput( owner, name )
+	local fun = owner[name]
+	owner[name] = function( ... )
+		local output = fun( ... )
+		self:_fixClassObject( output )
+		return output
+	end
+end
+
+function ResourceEnv:_addCreateElementFunction( owner, functionName, classTable )
+	local _fun = owner[functionName]
+	owner[functionName] = function( ... )
+		local result = _fun( ... )
+		if result then
+			self:_fixClassObject( result, classTable )
+			result:setParent( self._dynElementRoot )
+			return result
+		else
+			error("Can not create object", 2)
+		end
+	end
+end
+
+function ResourceEnv:_fixMetaInTableDeep( t, cheched )
+	local cheched = cheched or {}
+	cheched[t] = true
+	self:_fixMeta( t )
+	if type( t ) == "table" and not cheched[t] then
+		for key, value in pairs( t ) do
+			self:_fixMetaInTableDeep( key, cheched )
+			self:_fixMetaInTableDeep( value, cheched )
+		end
+	end
+end
+
+function ResourceEnv:_unpackFixed( vals )
+	self:_fixMetaInTable( vals )
+	return unpack( vals )
+end
+
+
+function ResourceEnv:tempValues( values )
+	self._temp_backup = {}
+	local env = self._env
+	for _, key in pairs( values ) do
+		self:_fixMeta( _G[key] )
+		self._temp_backup[key] = env[key]
+		env[key] = _G[key]
+	end
+end
+
+function ResourceEnv:restoreBackup()
+	if self._temp_backup then
+		for key, value in pairs( self._temp_backup ) do
+			self._env[key] = value
+		end
+	end
+end
+
+function ResourceEnv:_transformFilePath( path )
+	if path:sub(1, 1) ~= ":" then
+		path = (":%s/%s"):format( self._resourceName, path )
+	end
+	return path
+end
+
+function ResourceEnv:initCommandHandlersFunctions()
+	self._commands = {}
+
+	self._env.addCommandHandler = function(cmd, __commandFunction, ... )
+		self._commands[cmd] = true
 		addCommandHandler( cmd, function( ... )
-			CurrentEnv = env
+			CurrentEnv = self._env
 			local arg = { ... }
-			self._debugger:debugRun( function() __timerFunction( unpackFixed( arg ) ) end ) 
+			self._debugger:debugRun( function() __timerFunction( self:_unpackFixed( arg ) ) end ) 
 			CurrentEnv = _G
 		end, ... )
 	end
+end
 
-	-- Events
+function ResourceEnv:cleanCommandHandlersFunctions()
+	for cmd in pairs( self._commands ) do
+		removeCommandHandler( cmd )
+	end
+end
 
+function ResourceEnv:initTimerFunctions()
+	self._timers = {}
+	self._env.Timer.create = function( __timerFunction, time, count, ... )
+		if type( __timerFunction ) == 'function' then
+			local arg = { ... }
+			local timer
+
+			timer = Timer( function()
+				self:tempValues{
+					"sourceTimer",
+				}
+				CurrentEnv = self._env
+				self._debugger:debugRun( function() __timerFunction( self:_unpackFixed( arg ) ) end ) 
+				CurrentEnv = _G
+				self:restoreBackup()
+
+				if not timer:isValid() or select( 2, timer:getDetails() ) == 1 then
+					self._timers[timer] = nil
+				end
+			end, time, count )
+
+			self._timers[timer] = __timerFunction
+			return timer
+		end
+	end;
+
+	self._env.Timer.destroy = function( timer )
+		self._timers[timer] = nil
+		timer:destroy()
+	end;
+end
+
+function ResourceEnv:cleanTimerFunctions()
+	for timer in pairs( self._timers ) do
+		if isTimer( timer ) then
+			timer:destroy()
+		end
+	end
+end
+
+function ResourceEnv:initEventHandlersFunctions()
+	local eventHandlers = {}
+	self._eventHandlers = eventHandlers
 	self._destroyElementHandler = function()
 		eventHandlers[source] = nil
 	end 
 
 	addEventHandler( triggerClientEvent and "onElementDestroy" or "onClientElementDestroy", resourceRoot, self._destroyElementHandler )
 
-	env.addEventHandler = function( eventName, element, __eventFunction, ... )
+	self._env.addEventHandler = function( eventName, element, __eventFunction, ... )
 		if type( __eventFunction ) == 'function' then
 			local elementHandlers = eventHandlers[element]
 			if not elementHandlers then
@@ -479,7 +405,7 @@ function ResourceEnv:constructor(resource, debugger)
 				if client then
 					table.insert( backupKeys, "client" )
 				end
-				tempValues( backupKeys )
+				self:tempValues( backupKeys )
 				local arg = { ... }
 
 				if self._resource:getState() ~= 'running' then
@@ -487,18 +413,18 @@ function ResourceEnv:constructor(resource, debugger)
 					return
 				end
 
-				CurrentEnv = env
-				self._debugger:debugRun( function() __eventFunction( unpackFixed( arg ) ) end ) 
+				CurrentEnv = self._env
+				self._debugger:debugRun( function() __eventFunction( self:_unpackFixed( arg ) ) end ) 
 				CurrentEnv = _G
-				restoreBackup()
+				self:restoreBackup()
 			end;
 
 			local resul = addEventHandler( eventName, element, fun, ... )
 			if resul then
 				events[ __eventFunction ] = fun
 
-				if eventName == startEventName then
-					table.insert( startHandlers, { fun, element } )
+				if eventName == self.startEventName then
+					table.insert( self._startHandlers, { fun, element } )
 				end
 			end
 			return resul
@@ -508,7 +434,7 @@ function ResourceEnv:constructor(resource, debugger)
 		end
 	end;
 
-	env.removeEventHandler = function( eventName, element, _f )
+	self._env.removeEventHandler = function( eventName, element, _f )
 		local elementHandlers = eventHandlers[element]
 		if not elementHandlers then
 			elementHandlers = {}
@@ -527,137 +453,9 @@ function ResourceEnv:constructor(resource, debugger)
 			return false
 		end
 	end;
-
-	-- Timers
-
-	env.Timer.create = function( __timerFunction, time, count, ... )
-		if type( __timerFunction ) == 'function' then
-			local arg = { ... }
-			local timer
-
-			timer = Timer( function()
-				tempValues{
-					"sourceTimer",
-				}
-				CurrentEnv = env
-				self._debugger:debugRun( function() __timerFunction( unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
-				restoreBackup()
-
-				if not timer:isValid() or select( 2, timer:getDetails() ) == 1 then
-					timers[timer] = nil
-				end
-			end, time, count )
-
-			timers[timer] = __timerFunction
-			return timer
-		end
-	end;
-
-	env.Timer.destroy = function( timer )
-		timers[timer] = nil
-		timer:destroy()
-	end;
-
-
-	if triggerClientEvent then
-		-- Query functions
-		
-		env.dbQuery = function( __queryCallback, ... )
-			if type( __queryCallback ) == "function" then
-				local fun = function( ... )
-					local arg = { ... }
-					CurrentEnv = env
-					self._debugger:debugRun( function() __queryCallback( unpackFixed( arg ) ) end ) 
-					CurrentEnv = _G
-				end
-				dbQuery( fun, ... )
-			else
-				return dbQuery( __queryCallback, ... )
-			end
-		end
-
-		env.Connection.query = function( db, __queryCallback, ... )
-			if type( __queryCallback ) == "function" then
-				local fun = function( ... )
-					local arg = { ... }
-					CurrentEnv = env
-					self._debugger:debugRun( function() __queryCallback( unpackFixed( arg ) ) end ) 
-					CurrentEnv = _G
-				end
-				Connection.query( db, fun, ... )
-			else
-				return Connection.query( db, __queryCallback, ... )
-			end
-		end
-
-	end
-
-	-- Bindkey
-
-	if triggerClientEvent then
-
-	else
-		local function getBindData( key, state, fun )
-			for id, data in pairs( keyBinds ) do
-				if data[1] == key and data[2] == state and data[3] == fun then
-					return id, data
-				end
-			end
-		end
-
-		env.bindKey = function( key, state, func )
-			if type( func ) ~= "function" then
-				error( "Bad argument #3 in bindKey", 2 )
-			end
-			if getBindData( key, state, fun ) then
-				error( "Key already bound", 2 )
-			end
-			local __fun = function( ... )
-				local arg = { ... }
-				CurrentEnv = env
-				self._debugger:debugRun( function() func( unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
-			end
-
-			table.insert( keyBinds, { key, state, func, __fun } )
-
-			bindKey( key, state, __fun )
-		end
-
-		env.unbindKey = function( key, state, fun )
-			for id, data in pairs( keyBinds ) do
-				if data[1] == key
-					and (state == nil or data[2] == state)
-					and (fun == nil or data[3] == fun)
-				then
-					unbindKey( data[1], data[2], data[4] )
-					keyBinds[id] = nil
-				end
-			end
-		end
-	end
-
-	-- End
-
-    addEventHandler( stopEventName, resourceRoot, function()
-        self:destructor()
-    end )
-
-	self._env = env
 end
 
-function ResourceEnv:destructor()
-	self._resourceRoot:destroy()
-
-	for i, file in pairs( self._files ) do
-		fileClose( file )
-	end
-
-	for cmd in pairs( self._commands ) do
-		removeCommandHandler( cmd )
-	end
-
+function ResourceEnv:cleanEventHandlersFunctions()
 	for element, events in pairs( self._eventHandlers ) do
 		if isElement( element ) then
 			for eventName, functs in pairs( events ) do
@@ -667,30 +465,109 @@ function ResourceEnv:destructor()
 			end
 		end
 	end
+end
 
-	for timer in pairs( self._timers ) do
-		if isTimer( timer ) then
-			timer:destroy()
+function ResourceEnv:initFileFunctions()
+	self._files = {}
+	local FiliClassTable = self._env.File
+	local function _fileOpen( path, readOnly )
+		local file = fileOpen( self:_transformFilePath( path ), readOnly )
+		if file then
+			self:_fixClassObject( file, FiliClassTable )
+			table.insert( self._files, file )
+			return file
+		else
+			error( "Can't open file " .. tostring(path), 2 )
 		end
 	end
 
-	if triggerClientEvent then
-		for db in pairs( self._databases ) do
-			if isElement( db ) then
-				db:destroy()
+	self._env.fileOpen = _fileOpen
+	self._env.File.open = _fileOpen
+
+	local function _fileClose( file )
+		for i, f in pairs( self._files ) do
+			if f == file then
+				table.remove( self._files, i )
 			end
 		end
+		return fileClose( file )
+	end 
+
+	self._env.fileClose = _fileClose
+	self._env.File.close = _fileClose
+end
+
+function ResourceEnv:cleanFileFunctions()
+	for i, file in pairs( self._files ) do
+		fileClose( file )
+	end
+end
+
+function ResourceEnv:initCallFunctions()
+	self._env.call = function( targetResource, funcName, ... )
+		if resourceExports[targetResource] then
+			return resourceExports[targetResource][funcName]( ... )
+		else
+			local output = { call( targetResource, funcName, ... ) }
+			self:_fixMetaInTableDeep( output )
+			return unpack( output )
+		end
 	end
 
-	self:bindedKeysDestructor()
+	local type = type
+	local setmetatable = setmetatable
+	local getResourceRootElement = getResourceRootElement
+	local call = self._env.call
+	local getResourceFromName = getResourceFromName
+	local tostring = tostring
+	local outputDebugString = outputDebugString
 
+	local rescallMT = {}
+	function rescallMT:__index(k)
+	    if type(k) ~= 'string' then k = tostring(k) end
+	        self[k] = function(resExportTable, ...)
+	        if type(self.res) == 'userdata' and getResourceRootElement(self.res) then
+	            return call(self.res, k, ...)
+	        else
+			    return nil
+	        end
+	    end
+	    return self[k]
+	end
+
+	local exportsMT = {}
+	function exportsMT:__index(k)
+	    if type(k) == 'userdata' and getResourceRootElement(k) then
+	        return setmetatable({ res = k }, rescallMT)
+	    elseif type(k) ~= 'string' then
+	        k = tostring(k)
+	    end
+
+	    local res = getResourceFromName(k)
+	    if res and getResourceRootElement(res) then
+	        return setmetatable({ res = res }, rescallMT)
+	    else
+	        outputDebugString('exports: Call to non-running server resource (' .. k .. ')', 1)
+	        return setmetatable({}, rescallMT)
+	    end
+	end
+	self._env.exports = setmetatable({}, exportsMT)
+end
+
+function ResourceEnv:cleanCallFunctions()
 	resourceExports[self._resource] = nil
 end
 
-function ResourceEnv:bindedKeysDestructor()
-	for id, data in pairs( self._keyBinds ) do
-		unbindKey( data[1], data[2], data[4] )
-	end
+function ResourceEnv:destructor()
+	self._resourceRoot:destroy()
+
+	self:cleanTimerFunctions()
+	self:cleanCommandHandlersFunctions()
+	self:cleanBindKeysFunctions()
+	self:cleanFileFunctions()
+	self:cleanCallFunctions()
+
+	self:_destroyPlatform()
 end
 
 function ResourceEnv:loadFile( filePath )
@@ -731,7 +608,7 @@ function ResourceEnv:loadFiles( files )
 	source = self._resourceRoot
 	sourceResource = self._resource
 	sourceResourceRoot = self._resourceRoot
-	eventName = startEventName
+	eventName = self.startEventName
 
 	for _, handlerData in ipairs( self._startHandlers ) do
 		this = handlerData[2]
@@ -757,8 +634,8 @@ function ResourceEnv:allowExports( nameList )
 			local prevResource, preSourceResourceRoot = env.sourceResource, env.sourceResourceRoot
 			env.sourceResource = self._resource
 			env.sourceResourceRoot = self._resourceRoot
-			local result = copy( { env[funName]( ... ) } )
-			self._fixMetaInTableDeep( result )
+			local result = table.copy( { env[funName]( ... ) } )
+			self:_fixMetaInTableDeep( result )
 			env.sourceResource = prevResource
 			env.sourceResourceRoot = preSourceResourceRoot
 
