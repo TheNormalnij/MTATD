@@ -417,6 +417,21 @@ class MTASADebugSession extends DebugSession {
 	}
 
 	/**
+	 * Called when a step our is requested
+	 */
+	protected stepOutRequest(response: DebugProtocol.StepOutResponse, args: DebugProtocol.StepOutArguments): void {
+		const debugContext = this.getDebugContextByThreadId(args.threadId);
+
+		// Send step in request to backend
+		request(this._backendUrl + '/MTADebug/set_resume_mode' + debugContext.typeSuffix, {
+			json: { resume_mode: ResumeMode.StepOut }
+		}, () => {
+			debugContext.running = true;
+			this.sendResponse(response);
+		});
+	}
+
+	/**
 	 * Called when the editor requests an eval call
 	 */
 	protected evaluateRequest(response: DebugProtocol.EvaluateResponse, args: DebugProtocol.EvaluateArguments): void {

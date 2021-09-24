@@ -45,7 +45,7 @@ function MTADebug:constructor(backend)
     self._backend = backend
     self._breakpoints = {}
     self._resumeMode = ResumeMode.Resume
-    self._stepOverStackSize = 0
+    self._stepOverOutStackSize = 0
     self._ignoreGlobalList = self:_composeGlobalIgnoreList()
 
     self._started_resources = {}
@@ -103,14 +103,14 @@ end
 -----------------------------------------------------------
 function MTADebug:_hookFunction(hookType, nextLineNumber)
     if hookType == "call" then
-        if self._resumeMode == ResumeMode.StepOver then
-            self._stepOverStackSize = self._stepOverStackSize + 1
+        if self._resumeMode == ResumeMode.StepOver or self._resumeMode == ResumeMode.StepOut then
+            self._stepOverOutStackSize = self._stepOverOutStackSize + 1
         end
         return
     end
     if hookType == "return" or hookType == "tail return" then
-        if self._resumeMode == ResumeMode.StepOver then
-            self._stepOverStackSize = self._stepOverStackSize - 1
+        if self._resumeMode == ResumeMode.StepOver or self._resumeMode == ResumeMode.StepOut then
+            self._stepOverOutStackSize = self._stepOverOutStackSize - 1
         end
         return
     end
@@ -124,16 +124,21 @@ function MTADebug:_hookFunction(hookType, nextLineNumber)
     end
 
     -- Is there a breakpoint and pending line step?
-    if (not self:hasBreakpoint(sourcePath, nextLineNumber) and self._resumeMode ~= ResumeMode.StepInto)
-        and (self._resumeMode ~= ResumeMode.StepOver or self._stepOverStackSize > 0) then
-
-        -- Continue normally
-        return
+    local needStop
+    if self:hasBreakpoint(sourcePath, nextLineNumber) then
+        outputDebugString("Reached breakpoint", 3)
+        needStop = true
+    elseif self._resumeMode == ResumeMode.StepInto then
+        needStop = true
+    elseif self._resumeMode == ResumeMode.StepOver and self._stepOverOutStackSize == 0 then
+        needStop = true
+    elseif self._resumeMode == ResumeMode.StepOut and self._stepOverOutStackSize < 0 then
+        needStop = true
     end
 
-    outputDebugString("Reached breakpoint", 3)
-
-    self:runDebugLoop(4)
+    if needStop then
+        self:runDebugLoop(4)
+    end
 end
 
 function MTADebug:runDebugLoop(stackLevel, message)
@@ -606,10 +611,19 @@ function MTADebug.Commands:set_breakpoints( breakpoins, count )
 end
 
 function MTADebug.Commands:set_resume_mode( resumeMode )
+    resumeMode = tonumber( resumeMode )
+    if self._resumeMode == ResumeMode.Paused then
+        if resumeMode == ResumeMode.StepOver or resumeMode == ResumeMode.StepOut then
+            self._stepOverOutStackSize = 0
+        end
+    end
     self._resumeMode = tonumber( resumeMode )
 end
 
 function MTADebug.Commands:request_variable( reference, id )
+    if not self._stoppedStackLevel then
+        return toJSON({}, true):gsub("%[(.*)%]", "%1")
+    end
     if id and id ~= "" then
         local varType, stackLevel = id:match( "^(%w+)_(%d+)" )
         stackLevel = tonumber( stackLevel )
