@@ -1,5 +1,6 @@
 <meta>
     <info type="script" version="1.3"></info>
+    <min_mta_version server="1.5.5" client="1.5.5"/>
     <oop>true</oop>
     <script src="EnvBackup_shared.lua" type="shared" />
     <script src="Class_shared.lua" type="shared" />
