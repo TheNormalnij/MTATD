@@ -200,7 +200,7 @@ function MTADebug:runDebugLoop(stackLevel, message)
     local continue = false
     repeat
         -- Ask backend
-        local commands = self._backend:requestPlatform("pull_commands", {}, false)
+        local commands = self._backend:requestPlatform("pull_commands", nil, false)
 
         if commands then
             self:_handleCommands( commands )
@@ -607,7 +607,6 @@ end
 
 function MTADebug.Commands:set_resume_mode( resumeMode )
     self._resumeMode = tonumber( resumeMode )
-    return tostring( self._resumeMode )
 end
 
 function MTADebug.Commands:request_variable( reference, id )

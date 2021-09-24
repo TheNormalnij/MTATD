@@ -146,7 +146,7 @@ func (api *MTADebugAPI) handlerPushCommandServer(res http.ResponseWriter, req *h
 				api.CmdServer.AnMytex.Unlock()
 				break;
 			} else {
-				time.Sleep(1)
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
 
@@ -201,7 +201,7 @@ func (api *MTADebugAPI) handlerPushCommandClient(res http.ResponseWriter, req *h
 				api.CmdClient.AnMytex.Unlock()
 				break;
 			} else {
-				time.Sleep(1)
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
 
@@ -287,7 +287,7 @@ func (api *MTADebugAPI) handlerSetResumeModeServer(res http.ResponseWriter, req 
 		panic(err)
 	} else {
 		api.ServerContext = context
-		json.NewEncoder(res).Encode(&api.ServerContext)
+		json.NewEncoder(res).Encode("Successfully")
 
 		add_command := debugCommand{"set_resume_mode", []string{strconv.Itoa(context.ResumeMode)}, 0}
 		api.CmdServer.Commands = append(api.CmdServer.Commands,add_command)
@@ -303,7 +303,7 @@ func (api *MTADebugAPI) handlerSetResumeModeClient(res http.ResponseWriter, req 
 		panic(err)
 	} else {
 		api.ClientContext = context
-		json.NewEncoder(res).Encode(&api.ClientContext)
+		json.NewEncoder(res).Encode("Successfully")
 
 		add_command := debugCommand{"set_resume_mode", []string{strconv.Itoa(context.ResumeMode)}, 0}
 		api.CmdClient.Commands = append(api.CmdClient.Commands,add_command)

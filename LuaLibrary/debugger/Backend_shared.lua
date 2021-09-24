@@ -63,13 +63,15 @@ end
 -----------------------------------------------------------
 function Backend:request(name, data, callback)
     local responseObject = nil
-    local serialized = toJSON(data):gsub("%[(.*)%]", "%1") -- Fix object being embedded into a JSON array
+    if data then
+        data = toJSON(data):gsub("%[(.*)%]", "%1") -- Fix object being embedded into a JSON array
+    end
 
     if not (self._connected or name == "welcome") then
         return
     end
 
-    local result = fetchRemote(self._baseUrl..name,
+    local result = fetchRemote(self._baseUrl..name, name,
         function(response, errno)
             if errno == 7 then
                 if self._connected then
@@ -99,8 +101,11 @@ function Backend:request(name, data, callback)
                 responseObject = obj
             end
         end,
-        serialized
+        data
     )
+
+    -- Dirty hack. We need add a new request to avoid 5 seconds cooldown
+    fetchRemote("http://localhost:666", name, 1, 5, function() end )
 
     if callback == false then
         repeat
