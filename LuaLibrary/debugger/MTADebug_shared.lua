@@ -88,6 +88,7 @@ end
 
 function MTADebug:onDisconnected()
     outputDebugString( "Debugger disconnected", 3 )
+    self._resumeMode = ResumeMode.Resume
     if self._updateTimer and isTimer( self._updateTimer )then
         self._updateTimer:destroy()
         self._updateTimer = nil
