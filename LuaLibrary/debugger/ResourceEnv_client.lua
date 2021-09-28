@@ -3,16 +3,14 @@ ResourceEnv.stopEventName = "onClientResourceStop"
 ResourceEnv.startEventName = "onClientResourceStart"
 
 function ResourceEnv:_platformInit()
-	local env = self._env
-	self:_addCreateElementFunction( env, "playSFX", env.Sound )
-	self:_addCreateElementFunction( env, "playSound", env.Sound )
-	self:_addCreateElementFunction( env.Sound, "create", env.Sound )
-
-	self:_addCreateElementFunction( env, "playSFX3D", env.Sound3D )
-	self:_addCreateElementFunction( env, "playSound3D", env.Sound3D )
-	self:_addCreateElementFunction( env.Sound3D, "create", env.Sound3D )
-
 	self:initBindKeysFunctions()
+
+	local _guiCreateStaticImage = self._env.guiCreateStaticImage
+	self._env.guiCreateStaticImage = function( x, y, w, h, path, ... )
+		return _guiCreateStaticImage( x, y, w, h, type(path) == "string" and  self:_transformFilePath( path ), ... )
+	end
+
+	self._env.GuiStaticImage.create = self._env.guiCreateStaticImage
 end
 
 function ResourceEnv:_destroyPlatform()

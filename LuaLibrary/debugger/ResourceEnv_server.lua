@@ -3,14 +3,6 @@ ResourceEnv.stopEventName = "onResourceStop"
 ResourceEnv.startEventName = "onResourceStart"
 
 function ResourceEnv:_platformInit()
-	local env = self._env
-
-	self:_fixFucntionOutput( env, "getAccountPlayer" )
-	self:_fixFucntionOutput( env.Account, "getPlayer" )
-
-	self:_addCreateElementFunction( env, "createTeam", env.Team )
-	self:_addCreateElementFunction( env.Team, "create", env.Team )
-
 	self:initDatabaseFunctions()
 end
 

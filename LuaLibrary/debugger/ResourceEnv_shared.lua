@@ -12,13 +12,10 @@ function ResourceEnv:constructor(resource, debugger)
 	local resourceRoot = resource:getRootElement()
 	self._resourceRoot = resourceRoot
 	self._dynElementRoot = resource:getDynamicElementRoot()
-	local xml = {}
-	self._xml = xml
 	self._startHandlers = {}
 
 	local env = table.copy(DefaultEnv)
 	self._env = env
-	env._G = env
 	env.resource = resource
 	env.resourceRoot = resourceRoot
 	env.debug.debugger = debugger
@@ -32,6 +29,23 @@ function ResourceEnv:constructor(resource, debugger)
 		setmetatable( env[className], meta )
 		self._currentEnvClasses[ _G[className] ] = env[className]
 	end
+
+	for key, value in pairs( env ) do
+		if type( value ) == "function" then
+			self._handleFunction( value )
+		elseif type( value ) == "table" then
+			for k, v in pairs( value ) do
+				if type( v ) == "function" then
+					self._handleFunction( v )	
+				end
+			end
+		elseif type( value ) == "userdata" then
+			self:_fixMeta( value )
+		end
+	end
+
+	env._G = env
+	env.__string = env.string
 
 	-- Exports
 	self:initCallFunctions()
@@ -64,122 +78,6 @@ function ResourceEnv:constructor(resource, debugger)
 		return fun, errorMessage
 	end
 
-
-	self:_addCreateElementFunction( env, "createBlip", env.Blip )
-	self:_addCreateElementFunction( env.Blip, "create", env.Blip )
-	self:_addCreateElementFunction( env, "createBlipAttachedTo", env.Blip )
-	self:_addCreateElementFunction( env.Blip, "createAttachedTo", env.Blip )
-
-	self:_addCreateElementFunction( env, "createColCircle", env.ColShape )
-	self:_addCreateElementFunction( env, "createColCuboid", env.ColShape )
-	self:_addCreateElementFunction( env, "createColPolygon", env.ColShape )
-	self:_addCreateElementFunction( env, "createColRectangle", env.ColShape )
-	self:_addCreateElementFunction( env, "createColSphere", env.ColShape )
-	self:_addCreateElementFunction( env, "createColTube", env.ColShape )
-
-	self:_addCreateElementFunction( env.ColShape, "Circle", env.ColShape  )
-	self:_addCreateElementFunction( env.ColShape, "Cuboid", env.ColShape  )
-	self:_addCreateElementFunction( env.ColShape, "Polygon", env.ColShape  )
-	self:_addCreateElementFunction( env.ColShape, "Rectangle", env.ColShape  )
-	self:_addCreateElementFunction( env.ColShape, "Sphere", env.ColShape  )
-	self:_addCreateElementFunction( env.ColShape, "Tube", env.ColShape  )
-
-	self:_addCreateElementFunction( env, "createElement", env.Element )
-	self:_addCreateElementFunction( env.Element, "create", env.Element )
-	self:_addCreateElementFunction( env, "cloneElement", env.Element )
-	self:_addCreateElementFunction( env.Element, "clone", env.Element )
-
-	self:_addCreateElementFunction( env, "createMarker", env.Marker )
-	self:_addCreateElementFunction( env.Marker, "create", env.Marker )
-
-	self:_addCreateElementFunction( env, "createObject", env.Object )
-	self:_addCreateElementFunction( env.Object, "create", env.Object )
-
-	self:_addCreateElementFunction( env, "createPed", env.Ped )
-	self:_addCreateElementFunction( env.Ped, "create", env.Ped )
-
-	self:_addCreateElementFunction( env, "createPickup", env.Pickup )
-	self:_addCreateElementFunction( env.Pickup, "create", env.Pickup )
-
-	self:_addCreateElementFunction( env, "createRadarArea", env.RadarArea )
-	self:_addCreateElementFunction( env.RadarArea, "create", env.RadarArea )
-
-	self:_addCreateElementFunction( env, "createVehicle", env.Vehicle )
-	self:_addCreateElementFunction( env.Vehicle, "create", env.Vehicle )
-
-	self:_addCreateElementFunction( env, "createWater", env.Water )
-	self:_addCreateElementFunction( env.Water, "create", env.Water )
-
-	-- Fix output for some functions
-
-	self:_fixFunctionTableOutput( env, "getElementsByType" )
-	self:_fixFunctionTableOutput( env.Element, "getByType" )
-
-	env.getElementData = function( ... )
-		local result = getElementData( ... )
-		if result then
-			self:_fixMetaInTableDeep( result )
-		end
-		return result
-	end
-
-	env.Element.getData = env.getElementData
-
-	self:_fixFunctionTableOutput( env, "getElementsByType" )
-	self:_fixFunctionTableOutput( env.Element, "getByType" )
-
-	self:_fixFucntionOutput( env, "getRandomPlayer" )
-	self:_fixFucntionOutput( env.Player, "getRandom" )
-
-	self:_fixFucntionOutput( env, "getPlayerAccount" )
-	self:_fixFucntionOutput( env.Player, "getAccount" )
-
-	self:_fixFucntionOutput( env, "getPlayerFromName" )
-	self:_fixFucntionOutput( env.Player, "getFromName" )
-
-	self:_fixFucntionOutput( env, "getPlayerTeam" )
-	self:_fixFucntionOutput( env.Player, "getTeam" )
-
-	self:_fixFunctionTableOutput( env, "getAlivePlayers" )
-	self:_fixFunctionTableOutput( env.Player, "getAllAlive" )
-
-	self:_fixFunctionTableOutput( env, "getDeadPlayers" )
-	self:_fixFunctionTableOutput( env.Player, "getAllDead" )
-
-	self:_fixFucntionOutput( env, "getPedOccupiedVehicle" )
-	self:_fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
-
-	self:_fixFucntionOutput( env, "getPedTarget" )
-	self:_fixFucntionOutput( env.Ped, "getTarget" )
-
-	self:_fixFucntionOutput( env, "getPedOccupiedVehicle" )
-	self:_fixFucntionOutput( env.Ped, "getOccupiedVehicle" )
-
-	self:_fixFucntionOutput( env, "getVehicleController" )
-	self:_fixFucntionOutput( env.Vehicle, "getController" )
-
-	self:_fixFucntionOutput( env, "getVehicleOccupant" )
-	self:_fixFucntionOutput( env.Vehicle, "getOccupant" )
-
-	self:_fixFucntionOutput( env, "getVehicleTowedByVehicle" )
-	self:_fixFucntionOutput( env.Vehicle, "getTowedByVehicle" )
-
-	self:_fixFucntionOutput( env, "getVehicleTowingVehicle" )
-	self:_fixFucntionOutput( env.Vehicle, "getTowingVehicle" )
-
-	env.getVehicleOccupants = function( vehicle )
-		local output = getVehicleOccupants( vehicle )
-		if output then
-			for i = 0, 4 do
-				self:_fixClassObject( output[i] )
-			end
-			return output
-		end
-		error( "Failed to call getVehicleOccupants", 2 )
-	end
-
-	env.Vehicle.getOccupants = env.getVehicleOccupants
-
 	-- Files
 	self:initFileFunctions()
 	-- Commands
@@ -199,6 +97,27 @@ function ResourceEnv:constructor(resource, debugger)
     addEventHandler( self.stopEventName, resourceRoot, function()
         self:destructor()
     end )
+end
+
+local thisResourceDynRoot = resource:getDynamicElementRoot()
+function ResourceEnv:_handleFunction( fun )
+	return function( ... )
+		local output = { fun( ... ) }
+		local v
+		for i = 1, #output do
+			v = output[i]
+			if type( v ) == 'userdata' then
+				if isElement( v ) and getElementParent( v ) == thisResourceDynRoot then
+					v:setParent( self._dynElementRoot )
+				end
+				self:_fixMeta( v )
+			elseif type( v ) == "table" then
+				self:_fixMetaInTableDeep( v )
+			end
+		end
+
+		return unpack( output )
+	end
 end
 
 function ResourceEnv:_fixClassObject( obj, classTable )
