@@ -80,8 +80,12 @@ function ResourceEnv:constructor(resource, debugger)
 
 	-- Files
 	self:initFileFunctions()
+
 	-- Commands
 	self:initCommandHandlersFunctions()
+
+	-- XML
+	self:initXMLFunctions()
 
 	-- Events
 	self:initEventHandlersFunctions()
@@ -422,6 +426,82 @@ function ResourceEnv:cleanFileFunctions()
 	end
 end
 
+function ResourceEnv:initXMLFunctions()
+	self._xml = {}
+
+	local XMLClassTable = self._env.XML
+	self._env.getResourceConfig = function( path )
+		local xml = xmlLoadFile( self:_transformFilePath( path ), true )
+		if xml then
+			self:_fixClassObject( xml, XMLClassTable )
+			table.insert( self._xml, xml )
+			return xml
+		else
+			error( "Can't open xml " .. tostring(path), 2 )
+		end
+	end
+
+	local function _xmlLoadFile( path, readOnly )
+		local xml = xmlLoadFile( self:_transformFilePath( path ), readOnly )
+		if xml then
+			self:_fixClassObject( xml, XMLClassTable )
+			table.insert( self._xml, xml )
+			return xml
+		else
+			error( "Can't open xml " .. tostring(path), 2 )
+		end
+	end
+
+	self._env.xmlLoadFile = _xmlLoadFile
+	self._env.XML.load = _xmlLoadFile
+
+	local function _xmlCreateFile( path, rootNodeName )
+		local xml = xmlCreateFile( self:_transformFilePath( path ), rootNodeName )
+		if xml then
+			self:_fixClassObject( xml, XMLClassTable )
+			table.insert( self._xml, xml )
+			return xml
+		else
+			error( "Can't open xml " .. tostring(path), 2 )
+		end
+	end
+
+	self._env.xmlCreateFile = _xmlCreateFile
+	self._env.XML.create = _xmlCreateFile
+
+	local function _xmlCopyFile( node, path )
+		local xml = xmlCopyFile( node, self:_transformFilePath( path ) )
+		if xml then
+			self:_fixClassObject( xml, XMLClassTable )
+			table.insert( self._xml, xml )
+			return xml
+		else
+			error( "Can't open xml " .. tostring(path), 2 )
+		end
+	end
+
+	self._env.xmlCopyFile = _xmlCopyFile
+	self._env.XML.copy = _xmlCopyFile
+
+	local function _xmlUnloadFile( xml )
+		for i, f in pairs( self._xml ) do
+			if f == xml then
+				table.remove( self._xml, i )
+			end
+		end
+		return xmlUnloadFile( xml )
+	end 
+
+	self._env.xmlUnloadFile = _xmlUnloadFile
+	self._env.XML.unload = _xmlUnloadFile
+end
+
+function ResourceEnv:cleanXMLFunctions()
+	for i, xml in pairs( self._xml ) do
+		xmlUnloadFile( file )
+	end
+end
+
 function ResourceEnv:initCallFunctions()
 	self._env.call = function( targetResource, funcName, ... )
 		if resourceExports[targetResource] then
@@ -484,6 +564,7 @@ function ResourceEnv:destructor()
 	self:cleanCommandHandlersFunctions()
 	self:cleanBindKeysFunctions()
 	self:cleanFileFunctions()
+	self:cleanXMLFunctions()
 	self:cleanCallFunctions()
 
 	self:_destroyPlatform()
