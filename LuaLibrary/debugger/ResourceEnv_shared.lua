@@ -32,11 +32,11 @@ function ResourceEnv:constructor(resource, debugger)
 
 	for key, value in pairs( env ) do
 		if type( value ) == "function" then
-			self._handleFunction( value )
+			env[key] = self:_handleFunction( value )
 		elseif type( value ) == "table" then
 			for k, v in pairs( value ) do
 				if type( v ) == "function" then
-					self._handleFunction( v )	
+					value[k] = self:_handleFunction( v )	
 				end
 			end
 		elseif type( value ) == "userdata" then
@@ -256,7 +256,7 @@ end
 
 function ResourceEnv:initTimerFunctions()
 	self._timers = {}
-	self._env.Timer.create = function( __timerFunction, time, count, ... )
+	self._env.setTimer = function( __timerFunction, time, count, ... )
 		if type( __timerFunction ) == 'function' then
 			local arg = { ... }
 			local timer
@@ -280,16 +280,18 @@ function ResourceEnv:initTimerFunctions()
 		end
 	end;
 
+	self._env.Timer.create = self._env.setTimer
+
 	self._env.Timer.destroy = function( timer )
 		self._timers[timer] = nil
-		timer:destroy()
+		killTimer( timer )
 	end;
 end
 
 function ResourceEnv:cleanTimerFunctions()
 	for timer in pairs( self._timers ) do
 		if isTimer( timer ) then
-			timer:destroy()
+			killTimer( timer )
 		end
 	end
 end
