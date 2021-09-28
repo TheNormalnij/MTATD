@@ -3,6 +3,19 @@ ResourceEnv.stopEventName = "onClientResourceStop"
 ResourceEnv.startEventName = "onClientResourceStart"
 
 function ResourceEnv:_platformInit()
+	self._guiRoot = guiCreateLabel( 0, 0, 1, 1, '', true )
+	self._env.guiRoot = self._guiRoot
+
+	local _getResourceGUIElement = self._env.getResourceGUIElement
+	self._env.getResourceGUIElement = function( res )
+		if res == nil then
+			return self._guiRoot
+		else
+			-- TODO allow get fake roots
+			return _getResourceGUIElement( res )
+		end
+	end
+
 	self:initBindKeysFunctions()
 
 	local _guiCreateStaticImage = self._env.guiCreateStaticImage
@@ -15,6 +28,8 @@ end
 
 function ResourceEnv:_destroyPlatform()
 	self:cleanBindKeysFunctions()
+
+	destroyElement( self._guiRoot )
 end
 
 function ResourceEnv:initBindKeysFunctions()
@@ -62,5 +77,30 @@ end
 function ResourceEnv:cleanBindKeysFunctions()
 	for id, data in pairs( self._keyBinds ) do
 		unbindKey( data[1], data[2], data[4] )
+	end
+end
+
+local thisResourceDynRoot = resource:getDynamicElementRoot()
+local thisResourceGuiRoot = guiRoot
+function ResourceEnv:_handleFunction( fun )
+	return function( ... )
+		local output = { fun( ... ) }
+		local v
+		for i = 1, #output do
+			v = output[i]
+			if type( v ) == 'userdata' then
+				local parent = isElement( v ) and getElementParent( v )
+				if parent == thisResourceDynRoot then
+					v:setParent( self._dynElementRoot )
+				elseif parent == thisResourceGuiRoot then
+					v:setParent( self._guiRoot )
+				end
+				self:_fixMeta( v )
+			elseif type( v ) == "table" then
+				self:_fixMetaInTableDeep( v )
+			end
+		end
+
+		return unpack( output )
 	end
 end
