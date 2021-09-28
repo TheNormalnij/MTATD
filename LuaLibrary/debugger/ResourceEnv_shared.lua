@@ -649,3 +649,8 @@ end
 function ResourceEnv:getEnvTable()
 	return self._env
 end
+
+_G.__string = string
+getmetatable("").__index = function(str, key)
+	return CurrentEnv.__string[key]
+end
