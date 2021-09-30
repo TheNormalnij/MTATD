@@ -455,11 +455,11 @@ class MTASADebugSession extends DebugSession {
 			json: { command: command, args: commad_args, answer_id: this._lastCommandID++ }
 		}, (err, status, body) => {
 			if (!err && status.statusCode === 200) {
-				//const commandResult = JSON.parse(JSON.stringify(body));
-				const commandResult = body;
+				const commandResult = JSON.parse(JSON.stringify(body));
+				//const commandResult = body;
 				response.body = {
-					result: commandResult,
-					variablesReference: 0
+					result: commandResult.res,
+					variablesReference: commandResult.var
 				};
 				parent.sendResponse(response);
 			}
@@ -549,7 +549,7 @@ class MTASADebugSession extends DebugSession {
 	}
 
 	private getDebugContextByThreadId(threadId: number): DebugContext {
-		return threadId === MTASADebugSession.SERVER_THREAD_ID ? this._serverContext : this._clientContext;
+		return threadId === MTASADebugSession.CLIENT_THREAD_ID ? this._clientContext : this._serverContext;
 	}
 }
 

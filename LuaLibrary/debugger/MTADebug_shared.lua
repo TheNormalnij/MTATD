@@ -482,6 +482,8 @@ end
 function MTADebug:_runString(codeString, env)
     -- Hacked in from 'runcode' resource
 
+    self._lastRunVariable = nil
+
 	-- First we test with return
 	local commandFunction, errorMsg = loadstring("return "..codeString)
 	if errorMsg then
@@ -500,6 +502,8 @@ function MTADebug:_runString(codeString, env)
 	if not results[1] then
 		return nil, results[2]
 	end
+
+    self._lastRunVariable = handleVariable( 'run', results[2] )
 	
 	local resultsString = ""
 	local first = true
@@ -623,10 +627,10 @@ function MTADebug.Commands:set_resume_mode( resumeMode )
 end
 
 function MTADebug.Commands:request_variable( reference, id )
-    if not self._stoppedStackLevel then
-        return string.gsub(toJSON({}, true), "%[(.*)%]", "%1")
-    end
     if id and id ~= "" then
+        if not self._stoppedStackLevel then
+            return string.gsub(toJSON({}, true), "%[(.*)%]", "%1")
+        end
         local varType, stackLevel = id:match( "^(%w+)_(%d+)" )
         stackLevel = tonumber( stackLevel )
         local variables
@@ -724,6 +728,6 @@ function MTADebug.Commands:run_code( strCode )
     returnString, errorString = self:_runString(strCode, env)
     returnString = errorString or returnString
 
-    return tostring(returnString)
+    return string.gsub(toJSON({ res = returnString, var = self._lastRunVariable and self._lastRunVariable.varRef or 0 }, true), "%[(.*)%]", "%1")
 end
 
