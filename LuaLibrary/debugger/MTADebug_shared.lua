@@ -47,6 +47,7 @@ function MTADebug:constructor(backend)
     self._resumeMode = ResumeMode.Resume
     self._stepOverOutStackSize = 0
     self._ignoreGlobalList = self:_composeGlobalIgnoreList()
+    self.pedantic = true
 
     self._started_resources = {}
 
@@ -118,7 +119,7 @@ function MTADebug:_hookFunction(hookType, nextLineNumber)
 
     -- Get some debug info
     local debugInfo = debug.getinfo(3, "S")
-    local sourcePath =  debugInfo.source:gsub("\\", "/"):sub(2) -- Cut off @ (first character)
+    local sourcePath =  string.sub( string.gsub( debugInfo.source, "\\", "/" ), 2 ) -- Cut off @ (first character)
     local link = tonumber(sourcePath)
     if link then
         sourcePath = self._debugLinks[link]
@@ -245,7 +246,7 @@ function MTADebug:genDebugLink( resource, filePath )
 end
 
 function MTADebug:fixPathInString(str)
-    return str:gsub( '%[string "&(%d+)"%]', function(link)
+    return string.gsub( str, '%[string "&(%d+)"%]', function(link)
         link = tonumber(link)
         return self._debugLinks[link]
     end )
@@ -623,7 +624,7 @@ end
 
 function MTADebug.Commands:request_variable( reference, id )
     if not self._stoppedStackLevel then
-        return toJSON({}, true):gsub("%[(.*)%]", "%1")
+        return string.gsub(toJSON({}, true), "%[(.*)%]", "%1")
     end
     if id and id ~= "" then
         local varType, stackLevel = id:match( "^(%w+)_(%d+)" )
@@ -639,7 +640,7 @@ function MTADebug.Commands:request_variable( reference, id )
         end
 
 
-        return toJSON(variables, true):gsub("%[(.*)%]", "%1")
+        return string.gsub(toJSON(variables, true), "%[(.*)%]", "%1")
     else
         local variables = {}
         local refValue = deref(tonumber(reference))
@@ -653,7 +654,7 @@ function MTADebug.Commands:request_variable( reference, id )
                 table.insert(variables, handleVariable( key, value ))
             end
         end
-        return toJSON(variables, true):gsub("%[(.*)%]", "%1")
+        return string.gsub(toJSON(variables, true), "%[(.*)%]", "%1")
     end
 end
 

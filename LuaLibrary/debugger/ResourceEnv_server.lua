@@ -4,6 +4,25 @@ ResourceEnv.startEventName = "onResourceStart"
 
 function ResourceEnv:_platformInit()
 	self:initDatabaseFunctions()
+
+	local env = self._env
+
+	local _addResourceConfig = env.addResourceConfig
+	env.addResourceConfig = function( path, side )
+		return _addResourceConfig( self:_transformFilePath( path ), side )
+	end
+
+	env.get = function( key )
+		if key == "." then
+			return get( key )
+		elseif key == "" then
+			return get( self._resourceName .. key )
+		else
+			local access,  setting = key:match( '([*#@]?)(.+)' )
+			local resource, _setting = setting:match( '(.+)%.(.+)' )
+			return get( string.format( "%s%s.%s", access, resource or self._resourceName, _setting or setting ) )
+		end
+	end
 end
 
 function ResourceEnv:_destroyPlatform()
@@ -79,22 +98,23 @@ function ResourceEnv:initBindKeysFunctions()
 	end
 
 	self._env.bindKey = function( player, key, state, func )
-		if type( func ) ~= "function" then
-			error( "Bad argument #3 in bindKey", 2 )
-		end
-		if getBindData( player, key, state, fun ) then
-			error( "Key already bound", 2 )
-		end
-		local __fun = function( ... )
-			local arg = { ... }
-			CurrentEnv = self._env
-			self._debugger:debugRun( function() func( self:_unpackFixed( arg ) ) end ) 
-			CurrentEnv = _G
+		if type( func ) == "function" then
+			if getBindData( player, key, state, fun ) then
+				error( "Key already bound", 2 )
+			end
+			local __fun = function( ... )
+				local arg = { ... }
+				CurrentEnv = self._env
+				self._debugger:debugRun( function() func( self:_unpackFixed( arg ) ) end ) 
+				CurrentEnv = _G
+			end
+			bindKey( player, key, state, __fun )
+		else
+			bindKey( player, key, state, func )
 		end
 
 		table.insert( self._keyBinds, { player, key, state, func, __fun } )
 
-		bindKey( player, key, state, __fun )
 	end
 
 	self._env.unbindKey = function( player, key, state, fun )

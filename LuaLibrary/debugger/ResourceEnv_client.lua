@@ -3,11 +3,12 @@ ResourceEnv.stopEventName = "onClientResourceStop"
 ResourceEnv.startEventName = "onClientResourceStart"
 
 function ResourceEnv:_platformInit()
+	local env = self._env
 	self._guiRoot = guiCreateLabel( 0, 0, 1, 1, '', true )
-	self._env.guiRoot = self._guiRoot
+	env.guiRoot = self._guiRoot
 
-	local _getResourceGUIElement = self._env.getResourceGUIElement
-	self._env.getResourceGUIElement = function( res )
+	local _getResourceGUIElement = env.getResourceGUIElement
+	env.getResourceGUIElement = function( res )
 		if res == nil then
 			return self._guiRoot
 		else
@@ -18,12 +19,35 @@ function ResourceEnv:_platformInit()
 
 	self:initBindKeysFunctions()
 
-	local _guiCreateStaticImage = self._env.guiCreateStaticImage
-	self._env.guiCreateStaticImage = function( x, y, w, h, path, ... )
+	local _guiCreateStaticImage = env.guiCreateStaticImage
+	env.guiCreateStaticImage = function( x, y, w, h, path, ... )
 		return _guiCreateStaticImage( x, y, w, h, type(path) == "string" and  self:_transformFilePath( path ), ... )
 	end
 
-	self._env.GuiStaticImage.create = self._env.guiCreateStaticImage
+	env.GuiStaticImage.create = env.guiCreateStaticImage
+
+	local _playSound = env.playSound
+	env.playSound = function( path, ... )
+		local transformed = self._transformFilePath( path )
+		if fileExists( transformed ) then
+			return _playSound( transformed, ... )
+		else
+			return _playSound( path, ... )
+		end
+	end
+	env.Sound.create = env.playSound
+
+	local _playSound3D = env.playSound3D
+	env.playSound3D = function( path, ... )
+		local transformed = self._transformFilePath( path )
+		if fileExists( transformed ) then
+			return _playSound3D( transformed, ... )
+		else
+			return _playSound3D( path, ... )
+		end
+	end
+	env.Sound3D.create = env.playSound3D
+
 end
 
 function ResourceEnv:_destroyPlatform()
@@ -43,22 +67,23 @@ function ResourceEnv:initBindKeysFunctions()
 	end
 
 	self._env.bindKey = function( key, state, func )
-		if type( func ) ~= "function" then
-			error( "Bad argument #3 in bindKey", 2 )
-		end
-		if getBindData( key, state, fun ) then
-			error( "Key already bound", 2 )
-		end
-		local __fun = function( ... )
-			local arg = { ... }
-			CurrentEnv = self._env
-			self._debugger:debugRun( function() func( self:_unpackFixed( arg ) ) end ) 
-			CurrentEnv = _G
+		if type( func ) == "function" then
+			if getBindData( key, state, fun ) then
+				error( "Key already bound", 2 )
+			end
+			local __fun = function( ... )
+				local arg = { ... }
+				CurrentEnv = self._env
+				self._debugger:debugRun( function() func( self:_unpackFixed( arg ) ) end ) 
+				CurrentEnv = _G
+			end
+			bindKey( key, state, __fun )
+		else
+			bindKey( key, state, func )
 		end
 
 		table.insert( self._keyBinds, { key, state, func, __fun } )
 
-		bindKey( key, state, __fun )
 	end
 
 	self._env.unbindKey = function( key, state, fun )

@@ -1,4 +1,5 @@
 local resourceExports = {}
+local warningGenerated = false
 
 CurrentEnv = _G
 
@@ -78,6 +79,11 @@ function ResourceEnv:constructor(resource, debugger)
 		return fun, errorMessage
 	end
 
+	env.getThisResource = function()
+		self:_fixMeta( self._resource )
+		return self._resource
+	end
+
 	-- Files
 	self:initFileFunctions()
 
@@ -106,7 +112,13 @@ end
 local thisResourceDynRoot = resource:getDynamicElementRoot()
 function ResourceEnv:_handleFunction( fun )
 	return function( ... )
+		warningGenerated = false
+		CurrentEnv = _G
 		local output = { fun( ... ) }
+		CurrentEnv = self._env
+		if warningGenerated and self._debugger.pedantic then
+			error( "Pedantic mode - warning generated", 3 )
+		end
 		local v
 		for i = 1, #output do
 			v = output[i]
@@ -237,12 +249,13 @@ end
 function ResourceEnv:initCommandHandlersFunctions()
 	self._commands = {}
 
+	local addCommandHandler = self._env.addCommandHandler
 	self._env.addCommandHandler = function(cmd, __commandFunction, ... )
 		self._commands[cmd] = true
-		addCommandHandler( cmd, function( ... )
+		return addCommandHandler( cmd, function( ... )
 			CurrentEnv = self._env
 			local arg = { ... }
-			self._debugger:debugRun( function() __timerFunction( self:_unpackFixed( arg ) ) end ) 
+			self._debugger:debugRun( function() __commandFunction( self:_unpackFixed( arg ) ) end ) 
 			CurrentEnv = _G
 		end, ... )
 	end
@@ -409,6 +422,27 @@ function ResourceEnv:initFileFunctions()
 	self._env.fileOpen = _fileOpen
 	self._env.File.open = _fileOpen
 
+	local function _fileCreate( path )
+		local file = fileCreate( self:_transformFilePath( path ) )
+		if file then
+			self:_fixClassObject( file, FiliClassTable )
+			table.insert( self._files, file )
+			return file
+		else
+			error( "Can't open file " .. tostring(path), 2 )
+		end
+	end
+
+	self._env.fileCreate = _fileCreate
+	self._env.File.create = _fileCreate
+
+	local _fileExists = function( path )
+		return fileExists( self:_transformFilePath( path ) )
+	end
+
+	self._env.fileExists = _fileExists
+	self._env.File.exists = _fileExists
+
 	local function _fileClose( file )
 		for i, f in pairs( self._files ) do
 			if f == file then
@@ -431,11 +465,11 @@ end
 function ResourceEnv:initXMLFunctions()
 	self._xml = {}
 
+	local xmlLoadFile = self._env.xmlLoadFile
 	local XMLClassTable = self._env.XML
 	self._env.getResourceConfig = function( path )
 		local xml = xmlLoadFile( self:_transformFilePath( path ), true )
 		if xml then
-			self:_fixClassObject( xml, XMLClassTable )
 			table.insert( self._xml, xml )
 			return xml
 		else
@@ -446,7 +480,6 @@ function ResourceEnv:initXMLFunctions()
 	local function _xmlLoadFile( path, readOnly )
 		local xml = xmlLoadFile( self:_transformFilePath( path ), readOnly )
 		if xml then
-			self:_fixClassObject( xml, XMLClassTable )
 			table.insert( self._xml, xml )
 			return xml
 		else
@@ -457,10 +490,10 @@ function ResourceEnv:initXMLFunctions()
 	self._env.xmlLoadFile = _xmlLoadFile
 	self._env.XML.load = _xmlLoadFile
 
+	local xmlCreateFile = self._env.xmlCreateFile
 	local function _xmlCreateFile( path, rootNodeName )
 		local xml = xmlCreateFile( self:_transformFilePath( path ), rootNodeName )
 		if xml then
-			self:_fixClassObject( xml, XMLClassTable )
 			table.insert( self._xml, xml )
 			return xml
 		else
@@ -471,6 +504,8 @@ function ResourceEnv:initXMLFunctions()
 	self._env.xmlCreateFile = _xmlCreateFile
 	self._env.XML.create = _xmlCreateFile
 
+
+	local xmlCopyFile = self._env.xmlCopyFile
 	local function _xmlCopyFile( node, path )
 		local xml = xmlCopyFile( node, self:_transformFilePath( path ) )
 		if xml then
@@ -651,6 +686,10 @@ end
 function ResourceEnv:getEnvTable()
 	return self._env
 end
+
+addEventHandler( "onDebugMessage", root, function( message, level, file, line )
+	warningGenerated = true
+end )
 
 _G.__string = string
 getmetatable("").__index = function(str, key)
