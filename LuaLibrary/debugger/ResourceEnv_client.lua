@@ -4,19 +4,8 @@ ResourceEnv.startEventName = "onClientResourceStart"
 
 function ResourceEnv:_platformInit()
 	local env = self._env
-	self._guiRoot = guiCreateLabel( 0, 0, 1, 1, '', true )
-	env.guiRoot = self._guiRoot
 
-	local _getResourceGUIElement = env.getResourceGUIElement
-	env.getResourceGUIElement = function( res )
-		if res == nil then
-			return self._guiRoot
-		else
-			-- TODO allow get fake roots
-			return _getResourceGUIElement( res )
-		end
-	end
-
+	self:initGuiEnv()
 	self:initBindKeysFunctions()
 
 	env.playSound = self:_overloadFunctionPathChecked( env.playSound, 1 )
@@ -92,8 +81,7 @@ end
 
 function ResourceEnv:_destroyPlatform()
 	self:cleanBindKeysFunctions()
-
-	destroyElement( self._guiRoot )
+	self:cleanGuiEnv()
 end
 
 function ResourceEnv:initBindKeysFunctions()
@@ -143,6 +131,33 @@ function ResourceEnv:cleanBindKeysFunctions()
 	for id, data in pairs( self._keyBinds ) do
 		unbindKey( data[1], data[2], data[4] )
 	end
+end
+
+function ResourceEnv:initGuiEnv()
+	local env = self._env
+	self._guiRoot = guiCreateLabel( 0, 0, 1, 1, '', true )
+	env.guiRoot = self._guiRoot
+
+	local _getResourceGUIElement = env.getResourceGUIElement
+	env.getResourceGUIElement = function( res )
+		if res == nil then
+			return self._guiRoot
+		else
+			-- TODO allow get fake roots
+			return _getResourceGUIElement( res )
+		end
+	end
+
+	self._guiRenderHandler = function()
+		guiMoveToBack( self._guiRoot )
+	end
+
+	addEventHandler( "onClientPreRender", root, self._guiRenderHandler )
+end
+
+function ResourceEnv:cleanGuiEnv()
+	removeEventHandler( "onClientPreRender", root, self._guiRenderHandler )
+	destroyElement( self._guiRoot )
 end
 
 local thisResourceDynRoot = resource:getDynamicElementRoot()
