@@ -32,6 +32,7 @@ MessageLevelToType = {
     [3] = MesageTypes.console;
 }
 
+local MAX_CACHED_REFVALUES = 200
 -----------------------------------------------------------
 -- Constructs the MTADebug manager
 --
@@ -47,6 +48,8 @@ function MTADebug:constructor(backend)
     self._resumeMode = ResumeMode.Resume
     self._stepOverOutStackSize = 0
     self._ignoreGlobalList = self:_composeGlobalIgnoreList()
+    self._refvalueCache = {}
+    self._refvalueLastID = 0
     self.pedantic = true
 
     self._started_resources = {}
@@ -334,9 +337,7 @@ local function handleVariable( name, value )
         local ptr = tostring(value):sub(11,-1)
 
         if isElement( value ) then
-            if getAllElementData then
-                valueRef = ref(value)
-            end
+            valueRef = ref(value)
             local etype = getElementType( value )
             if etype == "player" then
                 value = "elem:"..etype.."["..getPlayerName( value ).."]" ..ptr
@@ -645,12 +646,40 @@ function MTADebug.Commands:request_variable( reference, id )
             for key, value in pairs(refValue) do
                 table.insert(variables, handleVariable( key, value ))
             end
-        elseif isElement( refValue ) and getAllElementData then
-            local data = getAllElementData( refValue )
+        elseif isElement( refValue ) then
+            local data = {}
+            if getAllElementData then
+                data.EDATA = getAllElementData( refValue )
+            end
+            local meta = getmetatable( refValue )
+            if meta and meta.__get then
+
+                local function fillValues( meta )
+                    if meta.__parent then
+                        fillValues( meta.__parent )
+                    end
+                    for key, fun in pairs( meta.__get ) do
+                        data[key] = fun( refValue )
+                    end
+                end
+                fillValues( meta )
+            end
+
             for key, value in pairs( data ) do
                 table.insert(variables, handleVariable( key, value ))
             end
+
+            refValue = data
         end
+
+        local cacheID = self._refvalueLastID + 1
+        if cacheID > MAX_CACHED_REFVALUES then
+            cacheID = 1
+        end
+
+        self._refvalueLastID = cacheID
+        self._refvalueCache[cacheID] = refValue
+
         return string.gsub(toJSON(variables, true), "%[(.*)%]", "%1")
     end
 end
