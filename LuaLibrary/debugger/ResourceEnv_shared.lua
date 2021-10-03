@@ -246,6 +246,29 @@ function ResourceEnv:_transformFilePath( path )
 	return path
 end
 
+function ResourceEnv:_overloadFunctionPath( fun, argNum )
+	return function( ... )
+		local args = { ... }
+		if type( args[argNum] ) == "string" then
+			args[argNum] = self:_transformFilePath( args[argNum] )
+		end
+		return fun( unpack( args ) )
+	end
+end
+
+function ResourceEnv:_overloadFunctionPathChecked( fun, argNum )
+	return function( ... )
+		local args = { ... }
+		if type( args[argNum] ) == "string" then
+			local path = self:_transformFilePath( args[argNum] )
+			if fileExists( path ) then
+				args[argNum] = path
+			end
+		end
+		return fun( unpack( args ) )
+	end
+end
+
 function ResourceEnv:initCommandHandlersFunctions()
 	self._commands = {}
 

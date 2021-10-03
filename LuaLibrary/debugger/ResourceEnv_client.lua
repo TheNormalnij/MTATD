@@ -19,34 +19,74 @@ function ResourceEnv:_platformInit()
 
 	self:initBindKeysFunctions()
 
-	local _guiCreateStaticImage = env.guiCreateStaticImage
-	env.guiCreateStaticImage = function( x, y, w, h, path, ... )
-		return _guiCreateStaticImage( x, y, w, h, type(path) == "string" and  self:_transformFilePath( path ), ... )
+	env.playSound = self:_overloadFunctionPathChecked( env.playSound, 1 )
+	env.Sound.create = self:_overloadFunctionPathChecked( env.Sound.create, 1 )
+
+	env.playSound3D = self:_overloadFunctionPathChecked( env.playSound3D, 1 )
+	env.Sound3D.create = self:_overloadFunctionPathChecked( env.Sound3D.create, 1 )
+
+	local _loadBrowserURL = env.loadBrowserURL
+	env.loadBrowserURL = function( browser, url, ... )
+		if type( url ) == "string" then
+			url = url:gsub( "http://mta/(local)/", "http://mta/" .. self._resourceName .. "/" )
+		end
+		return _loadBrowserURL( browser, url, ... )
 	end
+	env.Browser.loadURL = env.loadBrowserURL
 
-	env.GuiStaticImage.create = env.guiCreateStaticImage
+	env.dxCreateFont = self:_overloadFunctionPathChecked( env.dxCreateFont, 1 )
+	env.DxFont.create = self:_overloadFunctionPathChecked( env.DxFont.create, 1 )
 
-	local _playSound = env.playSound
-	env.playSound = function( path, ... )
-		local transformed = self._transformFilePath( path )
-		if fileExists( transformed ) then
-			return _playSound( transformed, ... )
-		else
-			return _playSound( path, ... )
+	env.dxCreateShader = self:_overloadFunctionPathChecked( env.dxCreateShader, 1 )
+	env.DxShader.create = self:_overloadFunctionPathChecked( env.DxShader.create, 1 )
+
+	env.dxCreateTexture = self:_overloadFunctionPathChecked( env.dxCreateTexture, 1 )
+	env.DxTexture.create = self:_overloadFunctionPathChecked( env.DxTexture.create, 1 )
+
+	env.dxDrawImage = self:_overloadFunctionPath( env.dxDrawImage, 5 )
+	env.dxDrawImageSection = self:_overloadFunctionPath( env.dxDrawImageSection, 9 )
+
+	env.engineLoadCOL = self:_overloadFunctionPathChecked( env.engineLoadCOL, 1 )
+	env.EngineCOL.create = self:_overloadFunctionPathChecked( env.EngineCOL.create, 1 )
+
+	env.engineLoadDFF = self:_overloadFunctionPathChecked( env.engineLoadDFF, 1 )
+	env.EngineDFF.create = self:_overloadFunctionPathChecked( env.EngineDFF.create, 1 )
+
+	env.engineLoadIFP = self:_overloadFunctionPathChecked( env.engineLoadIFP, 1 )
+	--env.EngineIFP.create = self:_overloadFunctionPathChecked( env.EngineIFP.create, 1 )
+
+	env.engineLoadTXD = self:_overloadFunctionPathChecked( env.engineLoadTXD, 1 )
+	env.EngineTXD.create = self:_overloadFunctionPathChecked( env.EngineTXD.create, 1 )
+
+	env.guiCreateFont = self:_overloadFunctionPathChecked( env.guiCreateFont, 1 )
+	env.GuiFont.create = self:_overloadFunctionPathChecked( env.GuiFont.create, 1 )
+
+	env.guiCreateStaticImage = self:_overloadFunctionPathChecked( env.guiCreateStaticImage, 5 )
+	env.GuiStaticImage.create = self:_overloadFunctionPathChecked( env.GuiStaticImage.create, 5 )
+
+	env.guiStaticImageLoadImage = self:_overloadFunctionPathChecked( env.guiStaticImageLoadImage, 2 )
+	env.GuiStaticImage.loadImage = self:_overloadFunctionPathChecked( env.GuiStaticImage.loadImage, 2 )
+
+	env.downloadFile = self:_overloadFunctionPathChecked( env.downloadFile, 1 )
+
+	if svgCreate then
+		local _svgCreate = env.svgCreate
+		env.svgCreate = function( w, h, path, callback, ... )
+			if type( path ) == "string" then
+				path = self:_transformFilePath( path )
+			end
+			if callback then
+				local _callback = callback
+				callback = function( ... )
+					local arg = { ... }
+					CurrentEnv = self._env
+					self._debugger:debugRun( function() _callback( self:_unpackFixed( arg ) ) end ) 
+					CurrentEnv = _G
+				end
+			end
+			return _svgCreate( w, h, path, callback, ... )
 		end
 	end
-	env.Sound.create = env.playSound
-
-	local _playSound3D = env.playSound3D
-	env.playSound3D = function( path, ... )
-		local transformed = self._transformFilePath( path )
-		if fileExists( transformed ) then
-			return _playSound3D( transformed, ... )
-		else
-			return _playSound3D( path, ... )
-		end
-	end
-	env.Sound3D.create = env.playSound3D
 
 end
 
