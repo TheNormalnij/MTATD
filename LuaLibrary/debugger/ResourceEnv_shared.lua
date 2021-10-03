@@ -438,7 +438,7 @@ function ResourceEnv:initFileFunctions()
 			table.insert( self._files, file )
 			return file
 		else
-			error( "Can't open file " .. tostring(path), 2 )
+			outputDebugString( "Can't open file " .. tostring(path), 2 )
 		end
 	end
 
@@ -452,7 +452,7 @@ function ResourceEnv:initFileFunctions()
 			table.insert( self._files, file )
 			return file
 		else
-			error( "Can't open file " .. tostring(path), 2 )
+			outputDebugString( "Can't open file " .. tostring(path), 2 )
 		end
 	end
 
@@ -496,7 +496,7 @@ function ResourceEnv:initXMLFunctions()
 			table.insert( self._xml, xml )
 			return xml
 		else
-			error( "Can't open xml " .. tostring(path), 2 )
+			outputDebugString( "Can't open xml " .. tostring(path), 2 )
 		end
 	end
 
@@ -506,7 +506,7 @@ function ResourceEnv:initXMLFunctions()
 			table.insert( self._xml, xml )
 			return xml
 		else
-			error( "Can't open xml " .. tostring(path), 2 )
+			outputDebugString( "Can't open xml " .. tostring(path), 2 )
 		end
 	end
 
@@ -520,7 +520,7 @@ function ResourceEnv:initXMLFunctions()
 			table.insert( self._xml, xml )
 			return xml
 		else
-			error( "Can't open xml " .. tostring(path), 2 )
+			outputDebugString( "Can't open xml " .. tostring(path), 2 )
 		end
 	end
 
@@ -536,7 +536,7 @@ function ResourceEnv:initXMLFunctions()
 			table.insert( self._xml, xml )
 			return xml
 		else
-			error( "Can't open xml " .. tostring(path), 2 )
+			outputDebugString( "Can't open xml " .. tostring(path), 2 )
 		end
 	end
 

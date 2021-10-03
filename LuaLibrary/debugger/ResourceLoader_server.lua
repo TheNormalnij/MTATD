@@ -1,15 +1,17 @@
 
-function ResourceLoader:load()
+function ResourceLoader:load( unpackResource )
 
-    local function preStartHandler( resource )
-        outputDebugString( "Resource will be loaded in debug mode...", 3 )
-        cancelEvent()
+    if unpackResource then
+        local function preStartHandler( resource )
+            outputDebugString( "Resource will be loaded in debug mode...", 3 )
+            cancelEvent()
+        end
+        addEventHandler( "onResourcePreStart", root, preStartHandler )
+
+        -- Unpack resource
+        startResource( self._resource, false, false, true, true, false, true, true, false, true )
+        removeEventHandler( "onResourcePreStart", root, preStartHandler )
     end
-    addEventHandler( "onResourcePreStart", root, preStartHandler )
-
-    -- Unpack resource
-    startResource( self._resource, false, false, true, true, false, true, true, false, true )
-    removeEventHandler( "onResourcePreStart", root, preStartHandler )
 
     self:parseTargetResourceMeta()
 

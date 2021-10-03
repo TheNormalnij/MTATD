@@ -32,6 +32,19 @@ function MTADebug:_platformInit()
     		self._started_resources[resource] = nil
     	end
     end )
+
+    if get( "loadAllResourcesInDebug" ) == "true" then
+        local function preStartHandler( resource )
+        	if not self._started_resources[resource] then
+	            outputDebugString( "Resource will be loaded in debug mode...", 3 )
+	            cancelEvent()
+	            setTimer( function()
+	            	self:startDebugResource( resource, false )
+	            end, 50, 1 )
+	        end
+        end
+        addEventHandler( "onResourcePreStart", root, preStartHandler )
+    end
 end
 
 -----------------------------------------------------------
@@ -68,13 +81,14 @@ function MTADebug:_getResourceBasePath( resource )
     end
 end
 
-function MTADebug:startDebugResource( resource )
+function MTADebug:startDebugResource( resource, needUnpack )
 	if not self._started_resources[resource] then
 		 local handler = ResourceLoader:new( resource, self )
-		 if handler:load() then
-		 	self._started_resources[resource] = handler
+		 self._started_resources[resource] = handler
+		 if handler:load( needUnpack ) then
 		 	return true
 		end
+		self._started_resources[resource] = nil
 		return false
 	end
 	return false
@@ -83,7 +97,7 @@ end
 function MTADebug.Commands:start_debug( resourceName )
 	local resource = Resource.getFromName( resourceName )
 	if resource then
-		local success = self:startDebugResource( resource )
+		local success = self:startDebugResource( resource, true )
 		return success and "Resource started in debug mode" or "Can't start resource in debug mode"
 	end
 	return "Can not find resource " .. tostring( resourceName )

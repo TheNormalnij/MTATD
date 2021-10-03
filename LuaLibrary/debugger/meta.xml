@@ -21,6 +21,11 @@
     <script src="ResourceLoader_server.lua" type="server" />
 
 	<script src="main_shared.lua" type="shared" />
+
+    <settings>
+        <setting name="loadAllResourcesInDebug" value="false" />
+    </settings>
+
 	<aclrequest>
         <right name="function.shutdown" access="true" />
         <right name="function.executeCommandHandler" access="true"></right>
