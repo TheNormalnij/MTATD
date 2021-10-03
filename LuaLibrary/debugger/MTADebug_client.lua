@@ -45,3 +45,23 @@ function MTADebug:_getResourceBasePath( resource )
         return path
     end
 end
+
+function MTADebug:getFullPath( path )
+    if path then
+        local link = path:match( 'string "&(%d+)"' )
+        if link then
+            path = self._debugLinks[ tonumber( link ) ]
+        else
+            local resourceName, pathInResource = path:match( '(.-)\\(.+)' )
+            if resourceName then
+                local resourcePath = self:_getResourceBasePath( getResourceFromName( resourceName ) )
+                if resourcePath then
+                    path = ("%s/%s"):format( resourcePath, pathInResource )
+                end
+            end
+        end
+        return path
+    else
+        return "?"
+    end
+end

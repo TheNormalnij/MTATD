@@ -45,6 +45,18 @@ function MTADebug:_getResourceOrganizationalPath( resource )
     return (organizationalPath ~= "" and organizationalPath.."/" or "")..getResourceName(resource).."/"
 end
 
+function MTADebug:getFullPath( path )
+    if path then
+        local link = path:match( 'string "&(%d+)"' )
+        if link then
+            path = self._debugLinks[ tonumber( link ) ]
+        end
+        return path
+    else
+        return "?"
+    end
+end
+
 function MTADebug:_getResourceBasePath( resource )
     local path = self._resourcePathes[resource]
     if path then
