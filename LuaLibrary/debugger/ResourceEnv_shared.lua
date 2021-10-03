@@ -535,7 +535,7 @@ end
 
 function ResourceEnv:cleanXMLFunctions()
 	for i, xml in pairs( self._xml ) do
-		xmlUnloadFile( file )
+		xmlUnloadFile( xml )
 	end
 end
 
