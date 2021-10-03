@@ -641,11 +641,13 @@ function ResourceEnv:loadFiles( files )
 	local prev_sourceResource = sourceResource
 	local prev_sourceResourceRoot = sourceResourceRoot
 	local prev_eventName = eventName
+	local prev_resource = resource
 
 	source = self._resourceRoot
 	sourceResource = self._resource
 	sourceResourceRoot = self._resourceRoot
 	eventName = self.startEventName
+	resource = self._resource
 
 	for _, handlerData in ipairs( self._startHandlers ) do
 		this = handlerData[2]
@@ -658,6 +660,7 @@ function ResourceEnv:loadFiles( files )
 	sourceResource = prev_sourceResource
 	sourceResourceRoot = prev_sourceResourceRoot
 	eventName = prev_eventName
+	resource = prev_resource
 end
 
 function ResourceEnv:allowExports( nameList )
