@@ -22,14 +22,58 @@
 
 	<script src="main_shared.lua" type="shared" />
 	<aclrequest>
-		<right name="function.startResource" access="true"/>
-		<right name="function.stopResource" access="true"/>
-		<right name="function.restartResource" access="true"/>
-		<right name="function.fetchRemote" access="true" />
-		<right name="function.refreshResources" access="true" />
-		<right name="function.executeCommandHandler" access="true" />
+        <right name="function.shutdown" access="true" />
+        <right name="function.executeCommandHandler" access="true"></right>
+        <right name="function.setPlayerMuted" access="true"></right>
+        <right name="function.addAccount" access="true"></right>
+        <right name="function.addBan" access="true"></right>
+        <right name="function.setUnbanTime" access="true"></right>
+        <right name="function.setBanAdmin" access="true"></right>
+        <right name="function.setBanReason" access="true"></right>
+        <right name="function.setBanNick" access="true"></right>
+        <right name="function.removeBan" access="true"></right>
+        <right name="function.removeAccount" access="true"></right>
+        <right name="function.setAccountPassword" access="true"></right>
+        <right name="function.kickPlayer" access="true"></right>
+        <right name="function.banIP" access="true"></right>
+        <right name="function.banPlayer" access="true"></right>
+        <right name="function.banSerial" access="true"></right>
+        <right name="function.getBansXML" access="true"></right>
+        <right name="function.unbanIP" access="true"></right>
+        <right name="function.unbanSerial" access="true"></right>
+        <right name="function.reloadBans" access="true"></right>
+        <right name="function.setServerPassword" access="true"></right>
+        <right name="function.getServerPassword" access="true"></right>
+        <right name="function.callRemote" access="true"></right>
+        <right name="function.fetchRemote" access="true"></right>
+        <right name="function.startResource" access="true"></right>
+        <right name="function.stopResource" access="true"></right>
+        <right name="function.restartResource" access="true"></right>
+        <right name="function.createResource" access="true"></right>
+        <right name="function.copyResource" access="true"></right>
+        <right name="function.addResourceMap" access="true"></right>
+        <right name="function.addResourceConfig" access="true"></right>
+        <right name="function.removeResourceFile" access="true"></right>
+        <right name="function.setResourceDefaultSetting" access="true"></right>
+        <right name="function.removeResourceDefaultSetting" access="true"></right>
+        <right name="function.redirectPlayer" access="true"></right>
+        <right name="function.aclReload" access="true"></right>
+        <right name="function.aclSave" access="true"></right>
+        <right name="function.aclCreate" access="true"></right>
+        <right name="function.aclDestroy" access="true"></right>
+        <right name="function.aclSetRight" access="true"></right>
+        <right name="function.aclRemoveRight" access="true"></right>
+        <right name="function.aclCreateGroup" access="true"></right>
+        <right name="function.aclDestroyGroup" access="true"></right>
+        <right name="function.aclGroupAddACL" access="true"></right>
+        <right name="function.aclGroupRemoveACL" access="true"></right>
+        <right name="function.aclGroupAddObject" access="true"></right>
+        <right name="function.aclGroupRemoveObject" access="true"></right>
+        <right name="function.refreshResources" access="true"></right>
+        <right name="function.setServerConfigSetting" access="true"></right>
+        <right name="function.updateResourceACLRequest" access="true"></right>
 
-		<right name="general.ModifyOtherObjects" access="true"/>
+        <right name="general.ModifyOtherObjects" access="true"/>
 	</aclrequest>
 
 	<download_priority_group>99999999</download_priority_group>
