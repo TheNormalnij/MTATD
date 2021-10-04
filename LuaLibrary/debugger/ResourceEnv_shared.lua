@@ -509,7 +509,8 @@ function ResourceEnv:initXMLFunctions()
 			table.insert( self._xml, xml )
 			return xml
 		else
-			outputDebugString( "Can't open xml " .. tostring(path), 2 )
+			--outputDebugString( "Can't open xml " .. tostring(path), 2 )
+			return false
 		end
 	end
 
