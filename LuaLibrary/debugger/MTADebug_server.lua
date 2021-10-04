@@ -28,7 +28,6 @@ function MTADebug:_platformInit()
     	self:sendMessage( "Resource stopped " .. resource:getName() )
 
     	if self._started_resources[resource] then
-    		self._started_resources[resource]:delete()
     		self._started_resources[resource] = nil
     	end
     end )

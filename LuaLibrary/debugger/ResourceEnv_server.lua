@@ -1,6 +1,7 @@
 
 ResourceEnv.stopEventName = "onResourceStop"
 ResourceEnv.startEventName = "onResourceStart"
+ResourceEnv.destroyElementEventName = "onElementDestroy"
 
 function ResourceEnv:_platformInit()
 	self:initDatabaseFunctions()

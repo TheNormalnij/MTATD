@@ -47,6 +47,7 @@ function ResourceEnv:constructor(resource, debugger)
 
 	env._G = env
 	env.__string = env.string
+	env.setmetatable = setmetatable
 
 	-- Exports
 	self:initCallFunctions()
@@ -339,7 +340,7 @@ function ResourceEnv:initEventHandlersFunctions()
 		eventHandlers[source] = nil
 	end 
 
-	addEventHandler( triggerClientEvent and "onElementDestroy" or "onClientElementDestroy", resourceRoot, self._destroyElementHandler )
+	addEventHandler( self.destroyElementEventName, resourceRoot, self._destroyElementHandler )
 
 	self._env.addEventHandler = function( eventName, element, __eventFunction, ... )
 		if type( __eventFunction ) == 'function' then
@@ -417,6 +418,8 @@ function ResourceEnv:initEventHandlersFunctions()
 end
 
 function ResourceEnv:cleanEventHandlersFunctions()
+	removeEventHandler( self.destroyElementEventName, resourceRoot, self._destroyElementHandler )
+
 	for element, events in pairs( self._eventHandlers ) do
 		if isElement( element ) then
 			for eventName, functs in pairs( events ) do
@@ -622,6 +625,7 @@ function ResourceEnv:destructor()
 
 	self:cleanTimerFunctions()
 	self:cleanCommandHandlersFunctions()
+	self:cleanEventHandlersFunctions()
 	self:cleanBindKeysFunctions()
 	self:cleanFileFunctions()
 	self:cleanXMLFunctions()

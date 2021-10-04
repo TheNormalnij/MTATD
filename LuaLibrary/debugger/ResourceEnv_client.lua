@@ -1,6 +1,7 @@
 
 ResourceEnv.stopEventName = "onClientResourceStop"
 ResourceEnv.startEventName = "onClientResourceStart"
+ResourceEnv.destroyElementEventName = "onClientElementDestroy"
 
 function ResourceEnv:_platformInit()
 	local env = self._env
@@ -184,3 +185,11 @@ function ResourceEnv:_handleFunction( fun )
 		return unpack( output )
 	end
 end
+
+-- Workaround for MTA bug. Serverside setElementParent can broke onClientElementDestroy event
+local function onPreEventFunction( sourceResource, eventName, eventSource )
+	if getUserdataType( eventSource ) == "userdata" then
+    	return "skip"
+	end
+end
+addDebugHook( "preEvent", onPreEventFunction, {"onClientElementDestroy"} )
