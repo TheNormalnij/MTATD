@@ -18,15 +18,20 @@ jobs:
       
       - name: Install Dependencies
         run: |
-          sudo apt install golang-go npm
+          sudo apt install golang-go npm upx-ucl
           go get github.com/gorilla/mux
           sudo npm install -g vsce
 
       - name: Build Linux debug server
-        run: go build -o VSCode_Extension/DebugServerLinux TestServer/*.go
+        run: |
+          go build -o VSCode_Extension/DebugServerLinux TestServer/*.go
+          upx -9 VSCode_Extension/DebugServerLinux
+
 
       - name: Build Windows debug server
-        run: GOOS="windows" go build -o VSCode_Extension/DebugServer.exe TestServer/*.go
+        run: |
+          GOOS="windows" go build -o VSCode_Extension/DebugServer.exe TestServer/*.go
+          upx -9 VSCode_Extension/DebugServer.exe
 
       - name: Copy MTA Resource
         run: |
