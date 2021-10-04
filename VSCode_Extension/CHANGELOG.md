@@ -1,4 +1,12 @@
 # Change Log
+## 1.2
+- Fork release
+- Step Out, Step over
+- Serveral resources support
+- Integrated tables and elements browser
+- Implement errors handler
+- Added messages from client and server
+
 ## 1.1
 - Fixed concurrent debugging on server and client
 - Added breakpoints correction
