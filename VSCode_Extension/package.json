@@ -1,22 +1,22 @@
 {
-  "name": "mtatd",
-  "displayName": "MTA:SA Debugger and Test Framework",
-  "description": "MTA:TD allows you to debug and test your Lua code easily",
-  "version": "1.1.0",
-  "publisher": "jusonex",
+  "name": "mtard",
+  "displayName": "MTA:SA Resources debugger",
+  "description": "MTA:RD powerfull MTA debugger",
+  "version": "1.2.0",
+  "publisher": "TheNormalnij",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Jusonex/MTATD.git"
+    "url": "https://github.com/TheNormalnij/MTATD.git"
   },
   "engines": {
     "vscode": "^1.10.0"
   },
   "categories": [
-    "Other"
+    "Debuggers"
   ],
   "activationEvents": [
     "onCommand:extension.startMTA",
-    "onCommand:extension.addMTATDResource"
+    "onCommand:extension.addMTARDResource"
   ],
   "main": "./out/src/extension",
   "icon": "icon.png",
@@ -24,28 +24,33 @@
     "commands": [
       {
         "command": "extension.startMTA",
-        "title": "MTA:TD: Start MTA Server"
+        "title": "MTA:RD: Start MTA Server"
       },
       {
-        "command": "extension.addMTATDResource",
-        "title": "MTA:TD: Add debug resource to current project"
+        "command": "extension.addMTARDResource",
+        "title": "MTA:RD: Add debug resource to current project"
       }
     ],
     "debuggers": [
       {
         "type": "mtasa",
-        "label": "MTA:SA Debugger",
+        "label": "MTA:SA Resources Debugger",
         "program": "./out/src/mtasaDebug.js",
         "runtime": "node",
         "configurationAttributes": {
           "launch": {
             "required": [
-              "serverpath"
+              "serverpath",
+              "resourcesPath"
             ],
             "properties": {
               "serverpath": {
                 "type": "string",
-                "description": "The MTA:SA server path (without 'MTA Server.exe')"
+                "description": "The MTA:SA server path (with 'MTA Server.exe')"
+              },
+              "resourcesPath": {
+                "type": "string",
+                "description": "Resources folder path"
               }
             }
           }
@@ -54,8 +59,9 @@
           {
             "type": "mtasa",
             "request": "launch",
-            "name": "Launch MTA:SA",
-            "serverpath": "C:\\Program Files (x86)\\MTA San Andreas 1.5\\server"
+            "name": "Launch debug server",
+            "serverpath": "C:\\Program Files (x86)\\MTA San Andreas 1.5\\server\\MTA Server.exe",
+            "resourcesPath": "${workspaceFolder}"
           }
         ]
       }

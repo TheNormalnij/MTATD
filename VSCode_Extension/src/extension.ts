@@ -38,30 +38,30 @@ export function activate(context: vscode.ExtensionContext) {
         // Show error if no serverpath is provided
         const serverpath = info[0].serverpath;
         if (!serverpath) {
-            vscode.window.showErrorMessage('The path to the MTA:SA server directory is missing. Make sure you added one to your launch configuration.');
+            vscode.window.showErrorMessage('The path to the MTA:SA server path is missing. Make sure you added one to your launch configuration.');
             return;
         }
 
         // Show error if the serverpath is invalid
-        if (!fs.existsSync(serverpath) || !fs.statSync(serverpath).isDirectory()) {
-            vscode.window.showErrorMessage('The value of the \'serverpath\' variable is invalid. It either doesn\'t exist or it is not a directory');
+        if (!fs.existsSync(serverpath) || !fs.statSync(serverpath).isFile()) {
+            vscode.window.showErrorMessage('The value of the \'serverpath\' variable is invalid. It either doesn\'t exist or it is not a programm');
             return;
         } 
 
         // Get extension path (the DebugServer lays there)
-        const extensionPath = normalize(vscode.extensions.getExtension('jusonex.mtatd').extensionPath);
+        const extensionPath = normalize(vscode.extensions.getExtension('thenormalnij.mtard').extensionPath);
 
         const env_playform = platform();
         // Start server
         if (env_playform == "linux")
         {
             const terminal = vscode.workspace.getConfiguration().get("terminal.external.linuxExec");
-            const path = normalize(serverpath + '/mta-server64');
+            const path = normalize(serverpath);
             exec(`${terminal} -e "${path}"`);
         }
         else if( env_playform == "win32" )
         {
-            const path = normalize(serverpath + '/MTA Server.exe');
+            const path = normalize(serverpath);
             exec(`start "MTA:SA Server [SCRIPT-DEBUG]" "${path}"`);
         }
         else
@@ -71,9 +71,9 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('extension.addMTATDResource', () => {
+    context.subscriptions.push(vscode.commands.registerCommand('extension.addMTARDResource', () => {
         // Get extension path (the MTATD bundle lays there)
-        const extensionPath = vscode.extensions.getExtension('jusonex.mtatd').extensionPath;
+        const extensionPath = vscode.extensions.getExtension('thenormalnij.mtard').extensionPath;
         const workspacePath = vscode.workspace.rootPath;
 
         if (!extensionPath || !workspacePath || extensionPath == '' || workspacePath == '') {

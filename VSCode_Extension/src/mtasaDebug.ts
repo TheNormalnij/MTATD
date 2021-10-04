@@ -11,7 +11,7 @@ import {
 import { spawn, ChildProcess } from 'child_process';
 import {DebugProtocol} from 'vscode-debugprotocol';
 import {readFileSync} from 'fs';
-import {basename, normalize} from 'path';
+import {basename, normalize, join} from 'path';
 import { platform } from 'os';
 import * as request from 'request';
 
@@ -26,6 +26,9 @@ export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArgum
 	stopOnEntry?: boolean;
 	/** enable logging the Debug Adapter Protocol */
 	trace?: boolean;
+
+	/** Path to resources folder */
+	resourcesPath: string;
 }
 
 /**
@@ -164,7 +167,7 @@ class MTASADebugSession extends DebugSession {
 				// Apply path from response
 				const info = JSON.parse(body);
 
-				this._resourcesPath = normalize(`${args.serverpath}/mods/deathmatch/resources/`);
+				this._resourcesPath = normalize(`${args.resourcesPath}`);
 
 				// Start timer that polls for the execution being paused
 				if (!this._pollPausedTimer)
@@ -281,12 +284,12 @@ class MTASADebugSession extends DebugSession {
 		for (var i = 0; lines[i]; i++)
 		{
 			const frameInfo = reg.exec(lines[i]);
-			const path = frameInfo[1];
+			const filepath = frameInfo[1];
 			const line = Number(frameInfo[2]);
 			const functionName = frameInfo[3];
 
-	        const fullFilePath = normalize(this._resourcesPath + path).replace(/\\/g, '/')
-			frames.push(new StackFrame(i, functionName, new Source(basename(path),
+	        const fullFilePath = normalize(join(this._resourcesPath, filepath)).replace(/\\/g, '/')
+			frames.push(new StackFrame(i, functionName, new Source(basename(filepath),
 					this.convertDebuggerPathToClient(fullFilePath)),
 					this.convertDebuggerLineToClient(line), 0));
 
@@ -478,7 +481,7 @@ class MTASADebugSession extends DebugSession {
 					const obj = objs[i];
 					var event = new OutputEvent(obj.message + '\n', MessageTypes[obj.type]);
 					if (obj.file) {
-						(<DebugProtocol.OutputEvent>event).body.source = new Source(basename(obj.file), normalize(this._resourcesPath + obj.file).replace(/\\/g, '/'));
+						(<DebugProtocol.OutputEvent>event).body.source = new Source(basename(obj.file), normalize(join(this._resourcesPath, obj.file)).replace(/\\/g, '/'));
 						(<DebugProtocol.OutputEvent>event).body.line = obj.line;
 					}
 					(<DebugProtocol.OutputEvent>event).body.variablesReference = obj.varRef;
@@ -536,9 +539,7 @@ class MTASADebugSession extends DebugSession {
 	 * @return The relative path
 	 */
 	private getRelativeResourcePath(absolutePath: string) {
-		const matches = normalize(absolutePath).replace(/\\/g, '/').match(/.*?mods\/deathmatch\/resources\/((?:\[.*\]\/)?.*?\/.*)$/);
-		const relativePath: string = matches.length > 0 ? matches[1] : absolutePath;
-
+		const relativePath = normalize(absolutePath).replace(this._resourcesPath, '').replace(/\\/g, '/');
 		return relativePath;
 	}
 
