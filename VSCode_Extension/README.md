@@ -37,6 +37,3 @@ Make then sure you insert a valid `serverpath` (the path to the server folder **
 * `!refresh resourceName` -  Refresh resource
 * `!refreshall` -  Refresh all resources
 * `!start_debug resourceName` - Start resource in debug mode
-
-## Changelog
-See [CHANGELOG.md](https://github.com/TheNormalnij/MTATD/blob/master/VSCode_Extension/CHANGELOG.md)
