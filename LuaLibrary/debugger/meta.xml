@@ -23,7 +23,11 @@
 	<script src="main_shared.lua" type="shared" />
 
     <settings>
+        <!-- Debuger will catch all started resources -->
         <setting name="loadAllResourcesInDebug" value="false" />
+
+        <!-- Catch warnings as errors  -->
+        <setting name="pedanticDebug" value="true" />
     </settings>
 
 	<aclrequest>

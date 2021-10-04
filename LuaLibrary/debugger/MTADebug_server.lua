@@ -32,7 +32,14 @@ function MTADebug:_platformInit()
     	end
     end )
 
-    if get( "loadAllResourcesInDebug" ) == "true" then
+    self.settings = {
+    	debugAllResources = get( "loadAllResourcesInDebug" ) == "true",
+    	pedantic = get( "pedanticDebug" ) == "true",
+    }
+
+    resourceRoot:setData( "debugSettings", self.settings )
+
+    if self.settings.debugAllResources then
         local function preStartHandler( resource )
         	if not self._started_resources[resource] then
 	            outputDebugString( "Resource will be loaded in debug mode...", 3 )

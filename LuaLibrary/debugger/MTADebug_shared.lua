@@ -50,7 +50,11 @@ function MTADebug:constructor(backend)
     self._ignoreGlobalList = self:_composeGlobalIgnoreList()
     self._refvalueCache = {}
     self._refvalueLastID = 0
-    self.pedantic = true
+
+    self.settings = {
+        debugAllResources = false,
+        pedantic = false,
+    }
 
     self._started_resources = {}
 

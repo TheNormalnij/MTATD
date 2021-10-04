@@ -117,7 +117,7 @@ function ResourceEnv:_handleFunction( fun )
 		CurrentEnv = _G
 		local output = { fun( ... ) }
 		CurrentEnv = self._env
-		if warningGenerated and self._debugger.pedantic then
+		if warningGenerated and self._debugger.settings.pedantic then
 			error( "Pedantic mode - warning generated", 3 )
 		end
 		local v

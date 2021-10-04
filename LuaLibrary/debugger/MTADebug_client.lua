@@ -22,6 +22,8 @@ function MTADebug:_platformInit()
             self:_startResourceDebug( resource )
         end
     end )
+
+    self.settings = resourceRoot:getData( "debugSettings" )
 end
 
 function MTADebug:_startResourceDebug( resource )
