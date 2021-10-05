@@ -289,10 +289,13 @@ class MTASADebugSession extends DebugSession {
 			const functionName = frameInfo[3];
 
 	        const fullFilePath = normalize(join(this._resourcesPath, filepath)).replace(/\\/g, '/')
-			frames.push(new StackFrame(i, functionName, new Source(basename(filepath),
+	        if (filepath === "?" || filepath === "[C]") {
+				frames.push(new StackFrame(i, functionName));
+	        } else {
+				frames.push(new StackFrame(i, functionName, new Source(basename(filepath),
 					this.convertDebuggerPathToClient(fullFilePath)),
 					this.convertDebuggerLineToClient(line), 0));
-
+			}
 			framesCount++; 
 		}
 		// Craft response
