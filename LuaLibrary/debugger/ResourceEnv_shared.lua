@@ -718,8 +718,10 @@ function ResourceEnv:getEnvTable()
 	return self._env
 end
 
-addEventHandler( "onDebugMessage", root, function( message, level, file, line )
-	warningGenerated = true
+addEventHandler( localPlayer and "onClientDebugMessage" or "onDebugMessage", root, function( message, level, file, line )
+	if level == 2 or level == 1 then
+		warningGenerated = true
+	end
 end )
 
 _G.__string = string
