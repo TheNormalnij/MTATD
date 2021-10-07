@@ -1,4 +1,4 @@
-# MTA:RD: MTA:SA Resources debugger [![Build Status](https://github.com/TheNormalnij/MTATD/actions/workflows/build.yml/badge.svg)](https://github.com/TheNormalnij/MTATD/actions?query=branch%3Amaster+event%3Apush)
+# MTA:RD: MTA:SA Resources debugger
 This extension implements a debug adapter for MTA:SA's (Multi Theft Auto: San Andreas) Lua. Note that it doesn't work with plain Lua though.
 
 ## Features
