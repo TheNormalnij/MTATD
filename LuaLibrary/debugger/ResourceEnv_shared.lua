@@ -115,9 +115,7 @@ local thisResourceDynRoot = resource:getDynamicElementRoot()
 function ResourceEnv:_handleFunction( fun )
 	return function( ... )
 		warningGenerated = false
-		ResourceEnv.currentHandler = self
 		local output = { fun( ... ) }
-		ResourceEnv.currentHandler = false
 		if warningGenerated and self._debugger.settings.pedantic then
 			error( "Pedantic mode - warning generated", 3 )
 		end
@@ -126,7 +124,7 @@ function ResourceEnv:_handleFunction( fun )
 			v = output[i]
 			if type( v ) == 'userdata' then
 				if isElement( v ) and getElementParent( v ) == thisResourceDynRoot then
-					v:setParent( self._dynElementRoot )
+					setElementParent( v, self._dynElementRoot )
 				end
 				self:_fixMeta( v )
 			elseif type( v ) == "table" then
@@ -138,24 +136,39 @@ function ResourceEnv:_handleFunction( fun )
 	end
 end
 
-function ResourceEnv:_fixClassObject( obj, classTable )
+function ResourceEnv:_fixClassObject( obj )
 	local prevmeta = getmetatable( obj )
-	local prev_index = prevmeta.__index
-	debug.setmetatable(obj, {
-		__class = classTable,
-		__index = function( self, key )
-			return classTable[key] or prev_index( obj, key )
-		end,
-		__newindex = prevmeta.__newindex,
-		__set = prevmeta.__set,
-		__get = prevmeta.__get,
-	})
+	if not prevmeta.__debuggable then
+		local index = prevmeta.__index
+		prevmeta.__index = function( obj, key )
+			local currentHandler = ResourceEnv.currentHandler
+			if currentHandler then
+				local root = prevmeta
+				while true do
+					if currentHandler._currentEnvClasses[root.__class][key] then
+						return currentHandler._currentEnvClasses[root.__class][key]
+					elseif root.__get[key] then
+						local result = root.__get[key]( obj )
+						self:_fixMetaInTableDeep( result )
+						return result
+					elseif root.__parent then
+						root = root.__parent
+					else
+						return nil
+					end
+				end
+			else
+				return index( obj, key )
+			end
+		end
+		prevmeta.__debuggable = true
+	end
 end
 
 function ResourceEnv:_fixMeta( val )
 	local meta = getmetatable( val )
 	if meta and meta.__class and self._currentEnvClasses[ meta.__class ] then
-		self:_fixClassObject( val, self._currentEnvClasses[ meta.__class ] )
+		self:_fixClassObject( val )
 	end
 end
 
@@ -164,7 +177,7 @@ function ResourceEnv:_fixMetaInTable( vals )
 	for i = 1, #vals do
 		meta = getmetatable( vals[i] )
 		if meta and meta.__class and self._currentEnvClasses[ meta.__class ] then
-			self:_fixClassObject( vals[i], self._currentEnvClasses[ meta.__class ] )
+			self:_fixClassObject( vals[i] )
 		end
 	end
 end
@@ -208,9 +221,10 @@ end
 function ResourceEnv:_getEnvRunFunction( fun )
 	return function( ... )
 		local arg = { ... }
+		local prevHandler = ResourceEnv.currentHandler
 		ResourceEnv.currentHandler = self
-		self._debugger:debugRun( function() fun( self:_unpackFixed( arg ) ) end ) 
-		ResourceEnv.currentHandler = false
+		self._debugger:debugRun( function() fun( self:_unpackFixed( arg ) ) end )
+		ResourceEnv.currentHandler = prevHandler
 	end
 end
 
@@ -324,6 +338,7 @@ function ResourceEnv:initEventHandlersFunctions()
 				elementHandlers[eventName] = events
 			end
 
+			local insideFunction = self:_getEnvRunFunction( __eventFunction )
 			local fun
 			fun = events[ __eventFunction ] or function( ... )
 				local backupKeys = {
@@ -342,8 +357,6 @@ function ResourceEnv:initEventHandlersFunctions()
 					removeEventHandler( eventName, element, fun )
 					return
 				end
-
-				local insideFunction = self:_getEnvRunFunction( __eventFunction )
 
 				insideFunction( ... )
 
@@ -402,11 +415,10 @@ end
 
 function ResourceEnv:initFileFunctions()
 	self._files = {}
-	local FiliClassTable = self._env.File
 	local function _fileOpen( path, readOnly )
 		local file = fileOpen( self:_transformFilePath( path ), readOnly )
 		if file then
-			self:_fixClassObject( file, FiliClassTable )
+			self:_fixClassObject( file )
 			table.insert( self._files, file )
 			return file
 		else
@@ -420,7 +432,7 @@ function ResourceEnv:initFileFunctions()
 	local function _fileCreate( path )
 		local file = fileCreate( self:_transformFilePath( path ) )
 		if file then
-			self:_fixClassObject( file, FiliClassTable )
+			self:_fixClassObject( file )
 			table.insert( self._files, file )
 			return file
 		else
@@ -461,7 +473,6 @@ function ResourceEnv:initXMLFunctions()
 	self._xml = {}
 
 	local xmlLoadFile = self._env.xmlLoadFile
-	local XMLClassTable = self._env.XML
 	self._env.getResourceConfig = function( path )
 		local xml = xmlLoadFile( self:_transformFilePath( path ), true )
 		if xml then
@@ -505,7 +516,7 @@ function ResourceEnv:initXMLFunctions()
 	local function _xmlCopyFile( node, path )
 		local xml = xmlCopyFile( node, self:_transformFilePath( path ) )
 		if xml then
-			self:_fixClassObject( xml, XMLClassTable )
+			self:_fixClassObject( xml )
 			table.insert( self._xml, xml )
 			return xml
 		else
@@ -646,10 +657,12 @@ function ResourceEnv:loadFiles( files )
 	eventName = self.startEventName
 	resource = self._resource
 
+	ResourceEnv.currentHandler = self
 	for _, handlerData in ipairs( self._startHandlers ) do
 		this = handlerData[2]
 		handlerData[1]( self._resource )
 	end
+	ResourceEnv.currentHandler = false
 
 	source = prev_source
 	this = prev_this
