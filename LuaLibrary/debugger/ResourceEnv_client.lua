@@ -66,13 +66,7 @@ function ResourceEnv:_platformInit()
 				path = self:_transformFilePath( path )
 			end
 			if callback then
-				local _callback = callback
-				callback = function( ... )
-					local arg = { ... }
-					CurrentEnv = self._env
-					self._debugger:debugRun( function() _callback( self:_unpackFixed( arg ) ) end ) 
-					CurrentEnv = _G
-				end
+				callback = self:_getEnvRunFunction( callback )
 			end
 			return _svgCreate( w, h, path, callback, ... )
 		end
@@ -96,16 +90,12 @@ function ResourceEnv:initBindKeysFunctions()
 	end
 
 	self._env.bindKey = function( key, state, func )
+		local __func = func
 		if type( func ) == "function" then
 			if getBindData( key, state, fun ) then
 				error( "Key already bound", 2 )
 			end
-			local __fun = function( ... )
-				local arg = { ... }
-				CurrentEnv = self._env
-				self._debugger:debugRun( function() func( self:_unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
-			end
+			__fun = self:_getEnvRunFunction( func )
 			bindKey( key, state, __fun )
 		else
 			bindKey( key, state, func )

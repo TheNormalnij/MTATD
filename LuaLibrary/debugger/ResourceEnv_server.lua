@@ -53,13 +53,7 @@ function ResourceEnv:initDatabaseFunctions()
 
 	env.dbQuery = function( __queryCallback, ... )
 		if type( __queryCallback ) == "function" then
-			local fun = function( ... )
-				local arg = { ... }
-				CurrentEnv = env
-				self._debugger:debugRun( function() __queryCallback( self:_unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
-			end
-			dbQuery( fun, ... )
+			dbQuery( self:_getEnvRunFunction( __queryCallback ), ... )
 		else
 			return dbQuery( __queryCallback, ... )
 		end
@@ -67,13 +61,7 @@ function ResourceEnv:initDatabaseFunctions()
 
 	env.Connection.query = function( db, __queryCallback, ... )
 		if type( __queryCallback ) == "function" then
-			local fun = function( ... )
-				local arg = { ... }
-				CurrentEnv = env
-				self._debugger:debugRun( function() __queryCallback( self:_unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
-			end
-			Connection.query( db, fun, ... )
+			Connection.query( db, self:_getEnvRunFunction( __queryCallback ), ... )
 		else
 			return Connection.query( db, __queryCallback, ... )
 		end
@@ -99,16 +87,12 @@ function ResourceEnv:initBindKeysFunctions()
 	end
 
 	self._env.bindKey = function( player, key, state, func )
+		local __fun = func
 		if type( func ) == "function" then
 			if getBindData( player, key, state, fun ) then
 				error( "Key already bound", 2 )
 			end
-			local __fun = function( ... )
-				local arg = { ... }
-				CurrentEnv = self._env
-				self._debugger:debugRun( function() func( self:_unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
-			end
+			__fun = self:_getEnvRunFunction( func )
 			bindKey( player, key, state, __fun )
 		else
 			bindKey( player, key, state, func )

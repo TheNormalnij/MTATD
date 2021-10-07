@@ -451,7 +451,7 @@ function MTADebug:_getGlobalVariables()
     local counter = 0
     local variables = { }
 
-    for k, v in pairs( CurrentEnv ) do
+    for k, v in pairs( ResourceEnv:getRunningEnv() ) do
         if type(v) ~= "function" and type(k) == "string" then
             -- Ignore variables in ignore list
             if not self._ignoreGlobalList[k] then
@@ -722,6 +722,7 @@ function MTADebug.Commands:run_code( strCode )
             end
         end
 
+        local globalEnv = ResourceEnv:getRunningEnv()
         env = setmetatable( {},
             {
                 __index = function( _, key )
@@ -730,7 +731,7 @@ function MTADebug.Commands:run_code( strCode )
                     elseif upvalueStack[key] then
                         return upvalueVariables[key]
                     else
-                        return CurrentEnv[key]
+                        return globalEnv[key]
                     end
                 end,
 
@@ -742,7 +743,7 @@ function MTADebug.Commands:run_code( strCode )
                         upvalueVariables[key] = value
                         debug.setupvalue(debugFun, upvalueStack[key], value)
                     else
-                        CurrentEnv[key] = value
+                        globalEnv[key] = value
                     end
                 end,
             }

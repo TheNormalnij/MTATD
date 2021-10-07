@@ -1,9 +1,9 @@
 local resourceExports = {}
 local warningGenerated = false
 
-CurrentEnv = _G
-
 ResourceEnv = Class()
+
+ResourceEnv.currentHandler = false
 
 function ResourceEnv:constructor(resource, debugger)
 	self._debugger = debugger
@@ -27,7 +27,7 @@ function ResourceEnv:constructor(resource, debugger)
 
 	for _, className in pairs( UsedMetateble ) do
 		local meta = getmetatable( _G[className] )
-		setmetatable( env[className], meta )
+		setmetatable( env[className], table.copy(meta) )
 		self._currentEnvClasses[ _G[className] ] = env[className]
 	end
 
@@ -46,8 +46,9 @@ function ResourceEnv:constructor(resource, debugger)
 	end
 
 	env._G = env
-	env.__string = env.string
+	self.string = env.string
 	env.setmetatable = setmetatable
+	env.rawset = rawset
 
 	-- Exports
 	self:initCallFunctions()
@@ -114,9 +115,9 @@ local thisResourceDynRoot = resource:getDynamicElementRoot()
 function ResourceEnv:_handleFunction( fun )
 	return function( ... )
 		warningGenerated = false
-		CurrentEnv = _G
+		ResourceEnv.currentHandler = self
 		local output = { fun( ... ) }
-		CurrentEnv = self._env
+		ResourceEnv.currentHandler = false
 		if warningGenerated and self._debugger.settings.pedantic then
 			error( "Pedantic mode - warning generated", 3 )
 		end
@@ -168,42 +169,6 @@ function ResourceEnv:_fixMetaInTable( vals )
 	end
 end
 
-function ResourceEnv:_fixFunctionTableOutput( owner, name )
-	local fun = owner[name]
-	owner[name] = function( ... )
-		local output = fun( ... )
-		if output then
-			self:_fixMetaInTable( output )
-			return output
-		end
-		error( "Failed to call " .. name, 2 )
-	end
-
-end
-
-function ResourceEnv:_fixFucntionOutput( owner, name )
-	local fun = owner[name]
-	owner[name] = function( ... )
-		local output = fun( ... )
-		self:_fixClassObject( output )
-		return output
-	end
-end
-
-function ResourceEnv:_addCreateElementFunction( owner, functionName, classTable )
-	local _fun = owner[functionName]
-	owner[functionName] = function( ... )
-		local result = _fun( ... )
-		if result then
-			self:_fixClassObject( result, classTable )
-			result:setParent( self._dynElementRoot )
-			return result
-		else
-			error("Can not create object", 2)
-		end
-	end
-end
-
 function ResourceEnv:_fixMetaInTableDeep( t, cheched )
 	local cheched = cheched or {}
 	cheched[t] = true
@@ -237,6 +202,15 @@ function ResourceEnv:restoreBackup()
 		for key, value in pairs( self._temp_backup ) do
 			self._env[key] = value
 		end
+	end
+end
+
+function ResourceEnv:_getEnvRunFunction( fun )
+	return function( ... )
+		local arg = { ... }
+		ResourceEnv.currentHandler = self
+		self._debugger:debugRun( function() fun( self:_unpackFixed( arg ) ) end ) 
+		ResourceEnv.currentHandler = false
 	end
 end
 
@@ -276,12 +250,7 @@ function ResourceEnv:initCommandHandlersFunctions()
 	local addCommandHandler = self._env.addCommandHandler
 	self._env.addCommandHandler = function(cmd, __commandFunction, ... )
 		self._commands[cmd] = true
-		return addCommandHandler( cmd, function( ... )
-			CurrentEnv = self._env
-			local arg = { ... }
-			self._debugger:debugRun( function() __commandFunction( self:_unpackFixed( arg ) ) end ) 
-			CurrentEnv = _G
-		end, ... )
+		return addCommandHandler( cmd, self:_getEnvRunFunction( __commandFunction ), ... )
 	end
 end
 
@@ -298,19 +267,19 @@ function ResourceEnv:initTimerFunctions()
 			local arg = { ... }
 			local timer
 
-			timer = Timer( function()
+			local indsideFun = self:_getEnvRunFunction( __timerFunction )
+
+			timer = Timer( function( ... )
 				self:tempValues{
 					"sourceTimer",
 				}
-				CurrentEnv = self._env
-				self._debugger:debugRun( function() __timerFunction( self:_unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
+				indsideFun( ... )
 				self:restoreBackup()
 
 				if not timer:isValid() or select( 2, timer:getDetails() ) == 1 then
 					self._timers[timer] = nil
 				end
-			end, time, count )
+			end, time, count, ... )
 
 			self._timers[timer] = __timerFunction
 			return timer
@@ -368,16 +337,16 @@ function ResourceEnv:initEventHandlersFunctions()
 					table.insert( backupKeys, "client" )
 				end
 				self:tempValues( backupKeys )
-				local arg = { ... }
 
 				if self._resource:getState() ~= 'running' then
 					removeEventHandler( eventName, element, fun )
 					return
 				end
 
-				CurrentEnv = self._env
-				self._debugger:debugRun( function() __eventFunction( self:_unpackFixed( arg ) ) end ) 
-				CurrentEnv = _G
+				local insideFunction = self:_getEnvRunFunction( __eventFunction )
+
+				insideFunction( ... )
+
 				self:restoreBackup()
 			end;
 
@@ -648,9 +617,9 @@ function ResourceEnv:loadFile( filePath )
 	local f, errorMsg = loadstring( content, self._debugger:genDebugLink( self._resource, filePath ) )
 	if f then
 		setfenv( f, self._env )
-		CurrentEnv = self._env
+		ResourceEnv.currentHandler = self
 		self._debugger:debugRun( f )
-		CurrentEnv = _G
+		ResourceEnv.currentHandler = false
 	else
 		errorMsg = self._debugger:fixPathInString( errorMsg )
 		local file, line = errorMsg:match( "^(.+):(%d+):.+" )
@@ -714,8 +683,12 @@ function ResourceEnv:allowExports( nameList )
 	resourceExports[self._resource] = exported
 end
 
-function ResourceEnv:getEnvTable()
-	return self._env
+function ResourceEnv:getRunningEnv()
+	if self.currentHandler then
+		return self.currentHandler._env
+	else
+		return _G
+	end
 end
 
 addEventHandler( localPlayer and "onClientDebugMessage" or "onDebugMessage", root, function( message, level, file, line )
@@ -724,7 +697,11 @@ addEventHandler( localPlayer and "onClientDebugMessage" or "onDebugMessage", roo
 	end
 end )
 
-_G.__string = string
+local string = string
 getmetatable("").__index = function(str, key)
-	return CurrentEnv.__string[key]
+	if ResourceEnv.currentHandler then
+		return ResourceEnv.currentHandler.string[key]
+	else
+		return string[key]
+	end
 end
