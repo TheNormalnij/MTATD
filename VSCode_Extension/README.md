@@ -19,6 +19,7 @@ This extension implements a debug adapter for MTA:SA's (Multi Theft Auto: San An
 * Variable editing
 * Fix bugs
 * Remote server debug
+
 ## Usage
 1. Use `resources` folder as root folder for VS Code workspace.
 1. When you start debugging, _Visual Studio Code_ asks you to create a new launch configuration based upon a default configuration.  
@@ -30,10 +31,19 @@ Make then sure you insert a valid `serverpath` (the path to the server folder **
 1. You're ready to start debugging now!
 
 ## Commands
-
 * `!start resourceName` - Start resource
 * `!stop resourceName` -  Stop resource
 * `!restart resourceName` -  Restart resource
 * `!refresh resourceName` -  Refresh resource
 * `!refreshall` -  Refresh all resources
 * `!start_debug resourceName` - Start resource in debug mode
+
+## How to use loadstring
+`loadstring( sourceCode, ":resourceName/path/to/source.lua" )`
+
+## What does not work
+* Disabled OOP. All resources will loaded in OOP mode
+* Metatable manipulation with userdata or strings. But you still can extend default classes
+
+## How to report a bug
+Please, create issues in [my github respoitory](https://github.com/TheNormalnij/MTATD/issues) 

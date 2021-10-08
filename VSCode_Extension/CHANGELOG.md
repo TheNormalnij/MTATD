@@ -1,4 +1,10 @@
 # Change Log
+## 1.2.1
+- Fix MTA classes with extended functions
+- Added callback handler for fetchRemote
+- Fix bugs when all server resources loaded in debug mode
+- Fix traceback errors spam
+
 ## 1.2
 - Fork release
 - Step Out, Step over
@@ -6,6 +12,7 @@
 - Integrated tables and elements browser
 - Implement errors handler
 - Added messages from client and server
+- Multiarch support
 
 ## 1.1
 - Fixed concurrent debugging on server and client
