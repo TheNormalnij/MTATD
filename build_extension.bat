@@ -4,10 +4,7 @@ rem Build Go DebugServer
 cd TestServer
 set GOARCH=386
 go build -o ../VSCode_Extension/DebugServer.exe main.go MTADebugAPI.go
-
-rem Compress binary
 cd ..
-.\tools\upx.exe -4 VSCode_Extension/DebugServer.exe
 
 rem Create Lua bundle
 cd LuaLibrary
