@@ -631,7 +631,7 @@ function ResourceEnv:loadFile( filePath )
 	local fullPath = (":%s/%s"):format( self._resourceName, filePath )
 	local file = File.open( fullPath, true )
 	if not file then
-		outputDebugString( ("Can not load %s. Remove 'mysql' keyword in script and do not start this resource before debugger" ):format( fullPath ), 3 )
+		outputDebugString( ("Can not load %s. Disable database_credentials_protection in mtaserver.conf" ):format( fullPath ), 3 )
 		return
 	end
 	local content = file:read( file:getSize() )
