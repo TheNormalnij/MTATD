@@ -427,52 +427,76 @@ end
 
 function ResourceEnv:initFileFunctions()
 	self._files = {}
-	local function _fileOpen( path, readOnly )
-		local file = fileOpen( self:_transformFilePath( path ), readOnly )
+
+	local _fileOpen = self._env.fileOpen
+	self._env.fileOpen = function( path, readOnly )
+		local file = _fileOpen( self:_transformFilePath( path ), readOnly )
 		if file then
-			self:_fixClassObject( file )
 			table.insert( self._files, file )
 			return file
 		else
-			outputDebugString( "Can't open file " .. tostring(path), 2 )
+			return file
 		end
 	end
+	self._env.File.open = self._env.fileOpen
 
-	self._env.fileOpen = _fileOpen
-	self._env.File.open = _fileOpen
-
-	local function _fileCreate( path )
-		local file = fileCreate( self:_transformFilePath( path ) )
+	local _fileCreate = self._env.fileCreate
+	self._env.fileCreate = function( path )
+		local file = _fileCreate( self:_transformFilePath( path ) )
 		if file then
-			self:_fixClassObject( file )
 			table.insert( self._files, file )
 			return file
 		else
-			outputDebugString( "Can't open file " .. tostring(path), 2 )
+			return file
 		end
 	end
+	self._env.File.new = self._env.fileCreate
 
-	self._env.fileCreate = _fileCreate
-	self._env.File.create = _fileCreate
+	local _fileExists = self._env.fileExists
+	self._env.fileExists = function( path )
+		return _fileExists( self:_transformFilePath( path ) )
+	end
+	self._env.File.exists = self._env.fileExists
 
-	local _fileExists = function( path )
-		return fileExists( self:_transformFilePath( path ) )
+	self._env.File.create = function( path, readOnly )
+		path = self:_transformFilePath( path )
+		local file
+		if _fileExists( path ) then
+			file = _fileOpen( path, readOnly )
+		else
+			file = _fileCreate( path )
+		end
+		if file then
+			table.insert( self._files, file )
+		end
+
+		return file
 	end
 
-	self._env.fileExists = _fileExists
-	self._env.File.exists = _fileExists
+	local _fileCopy = self._env.fileCopy
+	self._env.fileCopy = function( source, target, owerwrite )
+		source = self:_transformFilePath( source )
+		target = self:_transformFilePath( target )
+		return _fileCopy( source, target, owerwrite )
+	end 
+	self._env.File.copy = self._env.fileCopy
 
-	local function _fileClose( file )
+	local _fileClose = self._env.fileClose
+	self._env.fileClose = function( file )
 		for i, f in pairs( self._files ) do
 			if f == file then
 				table.remove( self._files, i )
 			end
 		end
-		return fileClose( file )
+		return _fileClose( file )
 	end 
+	self._env.File.close = self._env.fileClose
 
-	self._env.fileClose = _fileClose
-	self._env.File.close = _fileClose
+	local _fileDelete = self._env.fileDelete
+	self._env.fileDelete = function( path )
+		return _fileDelete( self:_transformFilePath( path ) )
+	end
+	self._env.File.delete = self._env.fileDelete
 end
 
 function ResourceEnv:cleanFileFunctions()
