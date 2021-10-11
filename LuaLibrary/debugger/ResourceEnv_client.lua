@@ -8,6 +8,7 @@ function ResourceEnv:_platformInit()
 
 	self:initGuiEnv()
 	self:initBindKeysFunctions()
+	self:initFontsEnv()
 
 	env.playSound = self:_overloadFunctionPathChecked( env.playSound, 1 )
 	env.Sound.create = self:_overloadFunctionPathChecked( env.Sound.create, 1 )
@@ -23,9 +24,6 @@ function ResourceEnv:_platformInit()
 		return _loadBrowserURL( browser, url, ... )
 	end
 	env.Browser.loadURL = env.loadBrowserURL
-
-	env.dxCreateFont = self:_overloadFunctionPathChecked( env.dxCreateFont, 1 )
-	env.DxFont.create = self:_overloadFunctionPathChecked( env.DxFont.create, 1 )
 
 	env.dxCreateShader = self:_overloadFunctionPathChecked( env.dxCreateShader, 1 )
 	env.DxShader.create = self:_overloadFunctionPathChecked( env.DxShader.create, 1 )
@@ -77,6 +75,31 @@ end
 function ResourceEnv:_destroyPlatform()
 	self:cleanBindKeysFunctions()
 	self:cleanGuiEnv()
+	self:cleanFontsEnv()
+end
+
+function ResourceEnv:initFontsEnv()
+	self._fonts = {}
+
+	local _dxCreateFont = self._env.dxCreateFont
+	self._env.dxCreateFont = function( path, ... )
+		path = self:_transformFilePath( path )
+		local font = _dxCreateFont( path, ... )
+		if font then
+			table.insert( self._fonts, font )
+		end
+		return font
+	end
+	self._env.DxFont.create = self._env.dxCreateFont
+end
+
+function ResourceEnv:cleanFontsEnv()
+	for k, font in pairs( self._fonts ) do
+		if isElement( font ) then
+			destroyElement( font )
+		end
+	end
+	self._fonts = {}
 end
 
 function ResourceEnv:initBindKeysFunctions()
