@@ -49,6 +49,7 @@ function ResourceEnv:constructor(resource, debugger)
 	self.string = env.string
 	env.setmetatable = setmetatable
 	env.rawset = rawset
+	env.coroutine.create = coroutine.create
 
 	-- Exports
 	self:initCallFunctions()
@@ -127,7 +128,16 @@ local thisResourceDynRoot = resource:getDynamicElementRoot()
 function ResourceEnv:_handleFunction( fun )
 	return function( ... )
 		warningGenerated = false
-		local output = { fun( ... ) }
+		-- We need save argument stack size
+		local argsCount = select( "#", ... )
+		local arg = { ... }
+		for i = 1, #arg do
+			if type( arg[i] ) == "function" then
+				arg[i] = self:_getEnvRunFunction( arg[i] )
+			end
+		end
+
+		local output = { fun( unpack( arg, 1, argsCount ) ) }
 		if warningGenerated and self._debugger.settings.pedantic then
 			error( "Pedantic mode - warning generated", 3 )
 		end

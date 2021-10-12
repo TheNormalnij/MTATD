@@ -59,14 +59,11 @@ function ResourceEnv:_platformInit()
 
 	if svgCreate then
 		local _svgCreate = env.svgCreate
-		env.svgCreate = function( w, h, path, callback, ... )
+		env.svgCreate = function( w, h, path, ... )
 			if type( path ) == "string" then
 				path = self:_transformFilePath( path )
 			end
-			if callback then
-				callback = self:_getEnvRunFunction( callback )
-			end
-			return _svgCreate( w, h, path, callback, ... )
+			return _svgCreate( w, h, path,  ... )
 		end
 	end
 
