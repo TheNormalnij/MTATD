@@ -87,18 +87,6 @@ function ResourceEnv:constructor(resource, debugger)
 		return self._resource
 	end
 
-	local _fetchRemote = env.fetchRemote
-	env.fetchRemote = function( ... )
-		local arg = { ... }
-		for i = 1, #arg do
-			if type ( arg[i] ) == "function" then
-				arg[i] = self:_getEnvRunFunction( arg[i] )
-				break;
-			end 
-		end
-		return _fetchRemote( unpack( arg ) )
-	end
-
 	-- Files
 	self:initFileFunctions()
 
