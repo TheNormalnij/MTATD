@@ -355,16 +355,20 @@ class MTASADebugSession extends DebugSession {
 				json: { command: "request_variable", args: [ String(args.variablesReference), id ], answer_id: this._lastCommandID++ },
 				}, (err, status, body) => {
 				if (!err && status.statusCode === 200) {
-					const objs = JSON.parse(JSON.stringify(body));
-					for (var i = 0; objs[i]; i++)
-					{
-						const obj = objs[i]
-						variables.push({
-							name: obj.name,
-							type:  obj.type,
-							value: obj.value,
-							variablesReference: obj.varRef
-						});
+					if (body.res) {
+						const objs = JSON.parse(body.res);
+						for (var i = 0; objs[i]; i++)
+						{
+							const obj = objs[i]
+							variables.push({
+								name: obj.name,
+								type:  obj.type,
+								value: obj.value,
+								variablesReference: obj.varRef
+							});
+						}
+					} else {
+						prev.sendErrorResponse( response, 10001, "Table is too big" );
 					}
 				}
 
@@ -461,11 +465,9 @@ class MTASADebugSession extends DebugSession {
 			json: { command: command, args: commad_args, answer_id: this._lastCommandID++ }
 		}, (err, status, body) => {
 			if (!err && status.statusCode === 200) {
-				const commandResult = JSON.parse(JSON.stringify(body));
-				//const commandResult = body;
 				response.body = {
-					result: commandResult.res,
-					variablesReference: commandResult.var
+					result: body.res,
+					variablesReference: body.var
 				};
 				parent.sendResponse(response);
 			}

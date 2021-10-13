@@ -549,16 +549,24 @@ function MTADebug:_handleCommands( commands )
         return
     end
     local results = {}
-    local commandData, result
+    local commandData, result, varRef, status, answer
     for i = 1, #commands do
         commandData = commands[i]
         if self.Commands[ commandData.command ] then
             commandData.args = commandData.args or {}
-            result = self.Commands[ commandData.command ]( self, unpack( commandData.args ) ) or false
-            if commandData.answer_id and commandData.answer_id ~= 0 and result then
+            status, result, varRef = pcall( self.Commands[ commandData.command ], self, unpack( commandData.args ) )
+
+            if commandData.answer_id and commandData.answer_id ~= 0 then
+
+                if status then
+                    answer = toJSON({ res = result, var = varRef or 0 }, true)
+                else
+                    answer = toJSON({ res = "Error: " .. result, var = 0 }, true)
+                end
+
                 table.insert(results, {
                     answer_id = commandData.answer_id,
-                    result = result,
+                    result = string.gsub(answer, "%[(.*)%]", "%1"),
                 })
             end
         else
@@ -755,6 +763,6 @@ function MTADebug.Commands:run_code( strCode )
     returnString, errorString = self:_runString(strCode, env)
     returnString = errorString or returnString
 
-    return string.gsub(toJSON({ res = returnString, var = self._lastRunVariable and self._lastRunVariable.varRef or 0 }, true), "%[(.*)%]", "%1")
+    return returnString, self._lastRunVariable and self._lastRunVariable.varRef
 end
 
