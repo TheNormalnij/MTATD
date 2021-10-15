@@ -641,9 +641,9 @@ function MTADebug.Commands:request_variable( reference, id )
         stackLevel = tonumber( stackLevel )
         local variables
         if varType == "local" then
-            variables = self:_getLocalVariables( self._stoppedStackLevel + stackLevel + 3 )
+            variables = self:_getLocalVariables( self._stoppedStackLevel + stackLevel + 4 )
         elseif varType == "upvalue" then
-            variables = self:_getUpvalueVariables( self._stoppedStackLevel + stackLevel + 3 )
+            variables = self:_getUpvalueVariables( self._stoppedStackLevel + stackLevel + 4 )
         else
             -- We don't need  get global variables
             variables = {}
@@ -700,8 +700,8 @@ function MTADebug.Commands:run_code( strCode )
     local returnString
     local env
     if self._stoppedStackLevel then
-        local stackLevel = self._stoppedStackLevel + 2
-        local debugFun = debug.getinfo(self._stoppedStackLevel + 2, "f").func
+        local stackLevel = self._stoppedStackLevel + 3
+        local debugFun = debug.getinfo(self._stoppedStackLevel + 3, "f").func
         local localVariables, localStack = {}, {}
         local upvalueVariables, upvalueStack = {}, {}
         local varName, varValue, i

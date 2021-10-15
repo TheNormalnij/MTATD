@@ -1,4 +1,8 @@
 # Change Log
+
+## 1.2.3
+- Fixed wrong stack level
+
 ## 1.2.2
 - Fixed functions with callback
 - Fixed file functions

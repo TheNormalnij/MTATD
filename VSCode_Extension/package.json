@@ -2,7 +2,7 @@
   "name": "mtard",
   "displayName": "MTA:SA Resources debugger",
   "description": "MTA:RD powerfull MTA debugger",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "publisher": "TheNormalnij",
   "repository": {
     "type": "git",
