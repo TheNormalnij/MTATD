@@ -1,9 +1,15 @@
 # Change Log
+## 1.2.2
+- Fixed functions with callback
+- Fixed file functions
+- Fixed status messages after commands
+- Fixed long varibale requests
+
 ## 1.2.1
 - Fix MTA classes with extended functions
 - Added callback handler for fetchRemote
-- Fix bugs when all server resources loaded in debug mode
-- Fix traceback errors spam
+- Fixed bugs when all server resources loaded in debug mode
+- Fixed traceback errors spam
 
 ## 1.2
 - Fork release
