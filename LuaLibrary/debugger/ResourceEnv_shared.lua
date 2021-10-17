@@ -403,7 +403,7 @@ function ResourceEnv:initEventHandlersFunctions()
 		if _f ~= nil then
 			return removeEventHandler( eventName, element, events[ _f ] )
 		else
-			outputDebugString( 'Expected function at argument 3 got ' .. type( _f ) )
+			outputDebugString( 'Expected function at argument 3 got ' .. type( _f ), 2 )
 			return false
 		end
 	end;
