@@ -1,5 +1,8 @@
 # Change Log
 
+## 1.2.4
+- Fixed broken breakponts on windows
+
 ## 1.2.3
 - Fixed wrong stack level
 
