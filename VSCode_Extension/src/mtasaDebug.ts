@@ -11,7 +11,7 @@ import {
 import { spawn, ChildProcess } from 'child_process';
 import {DebugProtocol} from 'vscode-debugprotocol';
 import {readFileSync} from 'fs';
-import {basename, normalize, join} from 'path';
+import {basename, normalize, join, relative} from 'path';
 import { platform } from 'os';
 import * as request from 'request';
 
@@ -544,14 +544,8 @@ class MTASADebugSession extends DebugSession {
 	 * @return The relative path
 	 */
 	private getRelativeResourcePath(absolutePath: string) {
-		const relativePath = normalize(absolutePath).replace(this._resourcesPath, '').replace(/\\/g, '/');
+		const relativePath = relative(this._resourcesPath, absolutePath).replace(/\\/g, '/');
 		return relativePath;
-	}
-
-	private log(msg: string, line: number) {
-		const e = new OutputEvent(`${msg}: ${line}\n`);
-		(<DebugProtocol.OutputEvent>e).body.variablesReference = this._variableHandles.create("args");
-		this.sendEvent(e);	// print current line on debug console
 	}
 
 	private getDebugContextByThreadId(threadId: number): DebugContext {
