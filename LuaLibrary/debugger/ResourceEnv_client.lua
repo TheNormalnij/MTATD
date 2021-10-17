@@ -182,9 +182,9 @@ function ResourceEnv:_handleFunction( fun )
 			if type( v ) == 'userdata' then
 				local parent = isElement( v ) and getElementParent( v )
 				if parent == thisResourceDynRoot then
-					v:setParent( self._dynElementRoot )
+					setElementParent( v, self._dynElementRoot )
 				elseif parent == thisResourceGuiRoot then
-					v:setParent( self._guiRoot )
+					setElementParent( v, self._guiRoot )
 				end
 				self:_fixMeta( v )
 			elseif type( v ) == "table" then
