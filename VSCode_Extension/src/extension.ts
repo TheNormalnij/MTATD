@@ -4,10 +4,9 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
-import { exec, ChildProcess } from 'child_process';
-import { normalize, join as path_join, basename } from 'path';
+import { exec } from 'child_process';
+import { normalize, join as path_join, basename, relative as path_relative } from 'path';
 import { platform } from 'os';
-import * as ps from 'ps-node';
 import * as fs from 'fs';
 
 // this method is called when your extension is activated
@@ -85,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
     }));
 }
 
-function copyFileSync( source, target ) {
+function copyFileSync(source: string, target: string) {
     var targetFile = target;
 
     // If target is a directory, a new file with the same name will be created
@@ -98,13 +97,12 @@ function copyFileSync( source, target ) {
     fs.writeFileSync(targetFile, fs.readFileSync(source));
 }
 
-function copyFolderRecursiveSync( source, target ) {
+function copyFolderRecursiveSync(source: string, target: string) {
     var files = [];
 
     // Check if folder needs to be created or integrated
-    var targetFolder = target;
-    if ( !fs.existsSync( targetFolder ) ) {
-        fs.mkdirSync( targetFolder, { recursive: true } );
+    if ( !fs.existsSync( target ) ) {
+        fs.mkdirSync( target, { recursive: true } );
     }
 
     // Copy
@@ -113,9 +111,9 @@ function copyFolderRecursiveSync( source, target ) {
         files.forEach( function ( file ) {
             var curSource = path_join( source, file );
             if ( fs.lstatSync( curSource ).isDirectory() ) {
-                copyFolderRecursiveSync( curSource,  path_join( targetFolder, basename( source ) ) );
+                copyFolderRecursiveSync(curSource, path_join(target, path_relative(source, curSource)));
             } else {
-                copyFileSync( curSource, targetFolder );
+                copyFileSync( curSource, target );
             }
         } );
     }

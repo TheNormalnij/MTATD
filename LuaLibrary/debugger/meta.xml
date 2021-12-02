@@ -1,30 +1,38 @@
 <meta>
     <info type="script" version="1.2.4"></info>
+
     <min_mta_version server="1.5.5" client="1.5.5"/>
+
     <oop>true</oop>
-    <script src="EnvBackup_shared.lua" type="shared" />
-    <script src="Class_shared.lua" type="shared" />
-    <script src="Backend_shared.lua" type="shared" />
+    
+    <script src="sandbox/EnvBackup_shared.lua" type="shared" />
+    <script src="utils/Class_shared.lua" type="shared" />
+    <script src="backend/Backend_shared.lua" type="shared" />
 
-    <script src="Utils_shared.lua" type="shared" />
+    <script src="utils/Utils_shared.lua" type="shared" />
 
-    <script src="ResourceEnv_shared.lua" type="shared" />
-    <script src="ResourceEnv_client.lua" type="client" />
-    <script src="ResourceEnv_server.lua" type="server" />
+    <script src="sandbox/ResourceEnv_shared.lua" type="shared" />
+    <script src="sandbox/ResourceEnv_client.lua" type="client" />
+    <script src="sandbox/ResourceEnv_server.lua" type="server" />
 
-    <script src="MTADebug_shared.lua" type="shared" />
-    <script src="MTADebug_client.lua" type="client" />
-    <script src="MTADebug_server.lua" type="server" />
+    <script src="debugger/MTADebug_shared.lua" type="shared" />
+    <script src="debugger/MTADebug_client.lua" type="client" />
+    <script src="debugger/MTADebug_server.lua" type="server" />
 
-    <script src="ResourceLoader_shared.lua" type="shared" />
-    <script src="ResourceLoader_client.lua" type="client" />
-    <script src="ResourceLoader_server.lua" type="server" />
+    <script src="loader/ResourceLoader_shared.lua" type="shared" />
+    <script src="loader/ResourceLoader_client.lua" type="client" />
+    <script src="loader/ResourceLoader_server.lua" type="server" />
 
-	<script src="main_shared.lua" type="shared" />
+	<script src="main_server.lua" type="server" />
+	<script src="main_client.lua" type="client" />
 
     <settings>
+        <!-- Host and port for adapter interface -->
+        <setting name="host" value="localhost" />
+        <setting name="port" value="51237" />
+
         <!-- Debuger will catch all started resources -->
-        <setting name="loadAllResourcesInDebug" value="false" />
+        <setting name="loadAllResourcesInDebug" value="true" />
 
         <!-- Catch warnings as errors  -->
         <setting name="pedanticDebug" value="true" />

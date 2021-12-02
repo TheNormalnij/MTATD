@@ -31,6 +31,18 @@ export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArgum
 	resourcesPath: string;
 }
 
+export interface AttachRequestArguments extends DebugProtocol.AttachRequestArguments {
+	/** A debug adapter URL. */
+	url: string;
+	/** Automatically stop target after launch. If not specified, target does not stop. */
+	stopOnEntry?: boolean;
+	/** enable logging the Debug Adapter Protocol */
+	trace?: boolean;
+
+	/** Path to resources folder */
+	resourcesPath: string;
+}
+
 /**
  * The debugger resume state
  */
@@ -86,7 +98,7 @@ class MTASADebugSession extends DebugSession {
 
 	private _variableHandles = new Handles<string>();
 
-	private _backendUrl: string = 'http://localhost:51237';
+	private _backendUrl: string = '';
 
 	private _resourcesPath: string;
 
@@ -119,8 +131,8 @@ class MTASADebugSession extends DebugSession {
 		// make VS Code to use 'evaluate' when hovering over source
 		//response.body.supportsEvaluateForHovers = true;
 
-		// Enable the restart request
-		response.body.supportsRestartRequest = true;
+		// Disable the restart request
+		response.body.supportsRestartRequest = false;
 
 		this.sendResponse(response);
 	}
@@ -129,10 +141,6 @@ class MTASADebugSession extends DebugSession {
 	 * Called when the debugger is launched (and the debugee started)
 	 */
 	protected launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArguments): void {
-		// if (args.trace) {
-		// 	Logger.setup(Logger.LogLevel.Verbose, false);
-		// }
-
         //Get extension path (the DebugServer lays there)
         const extensionPath = normalize(__dirname + '../../..')
 
@@ -154,9 +162,46 @@ class MTASADebugSession extends DebugSession {
         	return
         }
 
+		this._resourcesPath = normalize(`${args.resourcesPath}`);
+
+		this.connectToBacked( 'http://localhost:51237', () => {
+				// We just start to run until we hit a breakpoint or an exception
+				this.continueRequest(<DebugProtocol.ContinueResponse>response, { threadId: this._serverContext.threadId });
+				this.continueRequest(<DebugProtocol.ContinueResponse>response, { threadId: this._clientContext.threadId });
+			}
+		);
+	}
+
+	protected attachRequest(response: DebugProtocol.AttachResponse, args: AttachRequestArguments, request?: DebugProtocol.Request)
+	{
+		this._resourcesPath = normalize(`${args.resourcesPath}`);
+
+		this.connectToBacked(args.url, () => {
+				// We just start to run until we hit a breakpoint or an exception
+				this.continueRequest(<DebugProtocol.ContinueResponse>response, { threadId: this._serverContext.threadId });
+				this.continueRequest(<DebugProtocol.ContinueResponse>response, { threadId: this._clientContext.threadId });
+			}
+		);
+	}
+
+	/**
+	 * Called when the editor requests a restart
+	 */
+	protected restartRequest(response: DebugProtocol.RestartResponse, args: DebugProtocol.RestartArguments): void {
+	}
+
+	protected disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
+		if (this._debugProcess){
+			this._debugProcess.kill()
+		}
+	}
+
+	private connectToBacked(backendUrl: string, callback: () => void): void {
+		this._backendUrl = backendUrl;
+
 		// Delay request shortly if the MTA Server is not running yet
 		let interval: NodeJS.Timer;
-		interval = setInterval(() => {		
+		interval = setInterval(() => {
 			// Get info about debuggee
 			request(this._backendUrl + '/MTADebug/get_info', (err, res, body) => {
 				if (err || res.statusCode != 200) {
@@ -167,8 +212,6 @@ class MTASADebugSession extends DebugSession {
 				// Apply path from response
 				const info = JSON.parse(body);
 
-				this._resourcesPath = normalize(`${args.resourcesPath}`);
-
 				// Start timer that polls for the execution being paused
 				if (!this._pollPausedTimer)
 					this._pollPausedTimer = setInterval(() => { this.checkForPausedTick(); }, 500);
@@ -176,32 +219,13 @@ class MTASADebugSession extends DebugSession {
 				// We know got a list of breakpoints, so tell VSCode we're ready
 				this.sendEvent(new InitializedEvent());
 
-				// We just start to run until we hit a breakpoint or an exception
-				this.continueRequest(<DebugProtocol.ContinueResponse>response, { threadId: this._serverContext.threadId });
-				this.continueRequest(<DebugProtocol.ContinueResponse>response, { threadId: this._clientContext.threadId });
-
 				// Clear interval as we successfully received the info
 				clearInterval(interval)
+
+				// Call callback after init
+				callback();
 			});
 		}, 200);
-	}
-
-	/**
-	 * Called when the editor requests a restart
-	 */
-	protected restartRequest(response: DebugProtocol.RestartResponse, args: DebugProtocol.RestartArguments): void {
-		// Send restart command to server
-		// request(this._backendUrl + '/MTAServer/command', {
-		// 	json: { command: `restart ${this._resourceName}` }
-		// }, () => {
-		// 	this.sendResponse(response);
-		// });
-	}
-
-	protected disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments): void {
-		if (this._debugProcess){
-			this._debugProcess.kill()
-		}
 	}
 
 	/**

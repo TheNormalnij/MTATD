@@ -58,6 +58,9 @@ function MTADebug:constructor(backend)
 
     self._started_resources = {}
 
+    -- Enable onConnected and onDisconnected handlers
+    backend:setDelegate(self)
+
     -- Enable development mode
     setDevelopmentMode(true)
 
@@ -77,6 +80,16 @@ function MTADebug:destructor()
     end
 end
 
+-----------------------------------------------------------
+-- Returns backend interface
+-----------------------------------------------------------
+function MTADebug:getBackend()
+    return self._backend
+end
+
+-----------------------------------------------------------
+-- onConnect event from backend
+-----------------------------------------------------------
 function MTADebug:onConnected()
     outputDebugString( "Debugger connected", 3 )
 
@@ -94,6 +107,9 @@ function MTADebug:onConnected()
     )
 end
 
+-----------------------------------------------------------
+-- onConnect event from backend
+-----------------------------------------------------------
 function MTADebug:onDisconnected()
     outputDebugString( "Debugger disconnected", 3 )
     self._resumeMode = ResumeMode.Resume
@@ -102,6 +118,7 @@ function MTADebug:onDisconnected()
         self._updateTimer = nil
     end
 end
+
 -----------------------------------------------------------
 -- (Private) function that is called for each line in
 -- the script being executed (line hook)
@@ -427,7 +444,7 @@ end
 function MTADebug:_getUpvalueVariables(stackLevel)
     local variables = { }
     local func = debug.getinfo(stackLevel, "f").func
-    
+
     if func then
         for i = 1, 200 do
             local name, value = debug.getupvalue(func, i)
@@ -456,7 +473,7 @@ function MTADebug:_getGlobalVariables()
             -- Ignore variables in ignore list
             if not self._ignoreGlobalList[k] then
                 counter = counter + 1
-                
+
                 if counter <= 200 then
                     table.insert(variables, handleVariable( k, v ) )
                 else
@@ -502,7 +519,7 @@ function MTADebug:_runString(codeString, env)
 	end
 
     self._lastRunVariable = handleVariable( 'run', results[2] )
-	
+
 	local resultsString = ""
 	local first = true
 	for i = 2, #results do
@@ -517,11 +534,11 @@ function MTADebug:_runString(codeString, env)
 		end
 		resultsString = resultsString..tostring(results[i]).." ["..resultType.."]"
 	end
-	
+
 	if #results > 1 then
 		return resultsString
 	end
-	
+
 	return "nil"
 end
 

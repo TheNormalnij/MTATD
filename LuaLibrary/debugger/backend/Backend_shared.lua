@@ -24,9 +24,6 @@ function Backend:constructor(host, port)
 
     -- Connect to backend
     self:connect(host, port)
-
-    -- Create subsystems
-    self._debug = MTADebug:new(self)
 end
 
 -----------------------------------------------------------
@@ -34,7 +31,14 @@ end
 -----------------------------------------------------------
 function Backend:destructor()
     -- Destroy debugger
-    self._debug:delete()
+    self._delegate:delete()
+end
+
+-----------------------------------------------------------
+-- Sets debugger delegate
+-----------------------------------------------------------
+function Backend:setDelegate(delegate)
+    self._delegate = delegate
 end
 
 -----------------------------------------------------------
@@ -47,7 +51,7 @@ function Backend:connect(host, port)
     -- Make initial request to check if the backend is running
     self:request( "welcome", {}, function()
         self._connected = true
-        self._debug:onConnected()
+        self._delegate:onConnected()
     end )
 end
 
@@ -76,7 +80,7 @@ function Backend:request(name, data, callback)
             if errno == 7 then
                 if self._connected then
                     self._connected = false
-                    self._debug:onDisconnected()
+                    self._delegate:onDisconnected()
                     self:connect( self._host, self._port )
                 end
 
@@ -111,7 +115,7 @@ function Backend:request(name, data, callback)
         repeat
             debugSleep(25)
         until responseObject ~= nil
-        
+
         return responseObject
     else
         return result

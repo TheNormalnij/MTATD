@@ -53,6 +53,22 @@
                 "description": "Resources folder path"
               }
             }
+          },
+          "attach": {
+            "required": [
+              "url",
+              "resourcesPath"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "The debug adapter server URL"
+              },
+              "resourcesPath": {
+                "type": "string",
+                "description": "Resources folder path"
+              }
+            }
           }
         },
         "initialConfigurations": [
@@ -61,6 +77,13 @@
             "request": "launch",
             "name": "Launch debug server",
             "serverpath": "C:\\Program Files (x86)\\MTA San Andreas 1.5\\server\\MTA Server.exe",
+            "resourcesPath": "${workspaceFolder}"
+          },
+          {
+            "type": "mtasa",
+            "request": "attach",
+            "name": "Attach to debug adapter",
+            "url": "http://localhost:51237",
             "resourcesPath": "${workspaceFolder}"
           }
         ]
@@ -91,7 +114,6 @@
     "vscode-debugadapter-testsupport": "^1.47.0"
   },
   "dependencies": {
-    "ps-node": "^0.1.6",
     "request": "^2.88.2",
     "vscode-debugadapter": "^1.47.0",
     "vscode-debugprotocol": "^1.47.0"
